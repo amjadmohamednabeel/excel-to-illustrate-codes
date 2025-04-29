@@ -1,4 +1,3 @@
-
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
@@ -20,6 +19,45 @@ export const generateQRCodeSVG = (text: string, index: number): string => {
   `;
   
   return svg;
+};
+
+// Generate EPS version of a QR code
+export const generateQRCodeEPS = (text: string, index: number): string => {
+  const size = 100;
+  // EPS file format header
+  let eps = `%!PS-Adobe-3.0 EPSF-3.0
+%%BoundingBox: 0 0 ${size} ${size}
+%%Pages: 1
+%%DocumentData: Clean7Bit
+%%EndComments
+
+% QR Code for: ${text}
+% Index: ${index}
+
+/Arial findfont 10 scalefont setfont
+
+% White background
+1 1 1 setrgbcolor
+0 0 ${size} ${size} rectfill
+
+% Black QR code placeholder
+0 0 0 setrgbcolor
+10 10 80 80 rectfill
+
+% Red index number
+1 0 0 setrgbcolor
+10 85 moveto
+(${index}.) show
+
+% Serial number text
+0 0 0 setrgbcolor
+25 50 moveto
+(${text}) show
+
+%%EOF
+`;
+  
+  return eps;
 };
 
 // Creates an illustrator-ready SVG with multiple QR codes in a grid layout
@@ -65,7 +103,7 @@ export const generateIllustratorLayout = (data: ExcelRow[]): string => {
   return svgContent;
 };
 
-export const generateIllustratorFile = (data: ExcelRow[]): Promise<Blob> => {
+export const generateIllustratorFile = (data: ExcelRow[], format: 'svg' | 'eps' = 'svg'): Promise<Blob> => {
   const zip = new JSZip();
   const folder = zip.folder("qr_codes");
   
@@ -77,24 +115,32 @@ export const generateIllustratorFile = (data: ExcelRow[]): Promise<Blob> => {
     const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
     
     if (qrText) {
-      const svg = generateQRCodeSVG(qrText, index + 1);
-      folder.file(`QR_${serial}.svg`, svg);
+      if (format === 'svg') {
+        const svg = generateQRCodeSVG(qrText, index + 1);
+        folder.file(`QR_${serial}.svg`, svg);
+      } else {
+        const eps = generateQRCodeEPS(qrText, index + 1);
+        folder.file(`QR_${serial}.eps`, eps);
+      }
     }
   });
   
-  // Add a complete layout file
-  const layoutSvg = generateIllustratorLayout(data);
-  folder.file("complete_layout.svg", layoutSvg);
+  // Add a complete layout file (SVG only for now)
+  if (format === 'svg') {
+    const layoutSvg = generateIllustratorLayout(data);
+    folder.file("complete_layout.svg", layoutSvg);
+  }
   
   return zip.generateAsync({ type: "blob" });
 };
 
-export const downloadIllustratorFiles = async (data: ExcelRow[]): Promise<void> => {
+export const downloadIllustratorFiles = async (data: ExcelRow[], format: 'svg' | 'eps' = 'svg'): Promise<void> => {
   try {
-    const blob = await generateIllustratorFile(data);
-    saveAs(blob, "qr_codes_for_illustrator.zip");
+    const blob = await generateIllustratorFile(data, format);
+    const extension = format === 'svg' ? 'svg' : 'eps';
+    saveAs(blob, `qr_codes_for_illustrator_${extension}.zip`);
   } catch (error) {
-    console.error("Failed to generate Illustrator files:", error);
+    console.error(`Failed to generate ${format.toUpperCase()} files:`, error);
     throw error;
   }
 };
