@@ -21,38 +21,54 @@ export const generateQRCodeSVG = (text: string, index: number): string => {
   return svg;
 };
 
-// Generate EPS version of a QR code
+// Generate EPS version of a QR code - Improved for Illustrator compatibility
 export const generateQRCodeEPS = (text: string, index: number): string => {
-  const size = 100;
-  // EPS file format header
+  const size = 300; // Increased size for better visibility
+  
+  // Create a proper EPS file format that's compatible with Adobe Illustrator
   let eps = `%!PS-Adobe-3.0 EPSF-3.0
 %%BoundingBox: 0 0 ${size} ${size}
-%%Pages: 1
+%%Creator: QR Code Generator
+%%Title: QR Code ${index}
+%%CreationDate: ${new Date().toISOString()}
 %%DocumentData: Clean7Bit
 %%EndComments
+%%BeginProlog
+/M {moveto} def
+/L {lineto} def
+/RL {rlineto} def
+/CP {closepath} def
+/F {fill} def
+/S {stroke} def
+/GS {gsave} def
+/GR {grestore} def
+/SG {setgray} def
+/RF {rectfill} def
+/SF {selectfont} def
+/SH {show} def
+%%EndProlog
 
 % QR Code for: ${text}
-% Index: ${index}
-
-/Arial findfont 10 scalefont setfont
 
 % White background
-1 1 1 setrgbcolor
-0 0 ${size} ${size} rectfill
+1.0 1.0 1.0 setrgbcolor
+0 0 ${size} ${size} RF
 
 % Black QR code placeholder
-0 0 0 setrgbcolor
-10 10 80 80 rectfill
+0.0 0.0 0.0 setrgbcolor
+${size * 0.1} ${size * 0.1} ${size * 0.8} ${size * 0.8} RF
 
-% Red index number
-1 0 0 setrgbcolor
-10 85 moveto
-(${index}.) show
+% Index number in red
+1.0 0.0 0.0 setrgbcolor
+/Helvetica-Bold 24 SF
+${size * 0.1} ${size * 0.9} M
+(${index}.) SH
 
 % Serial number text
-0 0 0 setrgbcolor
-25 50 moveto
-(${text}) show
+0.0 0.0 0.0 setrgbcolor
+/Helvetica 18 SF
+${size * 0.2} ${size * 0.5} M
+(${text}) SH
 
 %%EOF
 `;
@@ -103,6 +119,97 @@ export const generateIllustratorLayout = (data: ExcelRow[]): string => {
   return svgContent;
 };
 
+// Generate a complete layout in EPS format
+export const generateEPSLayout = (data: ExcelRow[]): string => {
+  const qrSize = 150;
+  const padding = 20;
+  const qrPerRow = 5;
+  const rows = Math.ceil(data.length / qrPerRow);
+  
+  const pageWidth = (qrSize + padding) * qrPerRow + padding;
+  const pageHeight = (qrSize + padding) * rows + padding;
+  
+  let epsContent = `%!PS-Adobe-3.0 EPSF-3.0
+%%BoundingBox: 0 0 ${pageWidth} ${pageHeight}
+%%Creator: QR Code Generator Layout
+%%Title: QR Codes Complete Layout
+%%CreationDate: ${new Date().toISOString()}
+%%DocumentData: Clean7Bit
+%%EndComments
+%%BeginProlog
+/M {moveto} def
+/L {lineto} def
+/RL {rlineto} def
+/CP {closepath} def
+/F {fill} def
+/S {stroke} def
+/GS {gsave} def
+/GR {grestore} def
+/SG {setgray} def
+/RF {rectfill} def
+/SF {selectfont} def
+/SH {show} def
+%%EndProlog
+
+% White background for entire page
+1.0 1.0 1.0 setrgbcolor
+0 0 ${pageWidth} ${pageHeight} RF
+
+`;
+
+  // Add each QR code to the layout
+  data.forEach((row, index) => {
+    const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
+    const qrText = row['QR Code Text'] || row.qrCodeText || '';
+    
+    const col = index % qrPerRow;
+    const rowNum = Math.floor(index / qrPerRow);
+    
+    const x = padding + col * (qrSize + padding);
+    const y = pageHeight - (padding + (rowNum + 1) * (qrSize + padding));
+    
+    epsContent += `
+% QR Code ${index + 1}
+GS
+  % Cell background
+  1.0 1.0 1.0 setrgbcolor
+  ${x} ${y} ${qrSize} ${qrSize} RF
+  
+  % Border
+  0.8 0.8 0.8 setrgbcolor
+  0.5 setlinewidth
+  ${x} ${y} M
+  ${qrSize} 0 RL
+  0 ${qrSize} RL
+  ${-qrSize} 0 RL
+  CP
+  S
+  
+  % QR code placeholder
+  0.0 0.0 0.0 setrgbcolor
+  ${x + qrSize * 0.1} ${y + qrSize * 0.1} ${qrSize * 0.8} ${qrSize * 0.8} RF
+  
+  % Index number
+  1.0 0.0 0.0 setrgbcolor
+  /Helvetica-Bold 12 SF
+  ${x + 5} ${y + qrSize - 10} M
+  (${index + 1}.) SH
+  
+  % Serial number
+  0.0 0.0 0.0 setrgbcolor
+  /Helvetica 8 SF
+  ${x + qrSize/2} ${y + qrSize/2} M
+  (${serial}) SH
+GR
+`;
+  });
+
+  epsContent += `
+%%EOF`;
+
+  return epsContent;
+};
+
 export const generateIllustratorFile = (data: ExcelRow[], format: 'svg' | 'eps' = 'svg'): Promise<Blob> => {
   const zip = new JSZip();
   const folder = zip.folder("qr_codes");
@@ -125,10 +232,13 @@ export const generateIllustratorFile = (data: ExcelRow[], format: 'svg' | 'eps' 
     }
   });
   
-  // Add a complete layout file (SVG only for now)
+  // Add a complete layout file
   if (format === 'svg') {
     const layoutSvg = generateIllustratorLayout(data);
     folder.file("complete_layout.svg", layoutSvg);
+  } else {
+    const layoutEps = generateEPSLayout(data);
+    folder.file("complete_layout.eps", layoutEps);
   }
   
   return zip.generateAsync({ type: "blob" });
