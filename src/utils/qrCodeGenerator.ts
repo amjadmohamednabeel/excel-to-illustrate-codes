@@ -1,3 +1,4 @@
+
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
@@ -181,6 +182,10 @@ export const generateEPSLayout = (data: ExcelRow[]): string => {
     const qrX = x + boxWidth - qrSize - 5; // 5 points from right edge
     const qrY = y + (boxHeight - qrSize) / 2;
     
+    // Fixed issue: Use a calculated position for text centering in JavaScript
+    // instead of trying to use PostScript commands in a template literal
+    const textPosition = x + ((boxWidth - qrSize) / 4); // Center point for text
+    
     epsContent += `
 % QR Code and Label ${index + 1}
 GS
@@ -211,13 +216,10 @@ GS
   0.0 0.0 0.0 setrgbcolor
   /Denso 12 SF
   
-  % Calculate text width for centering (approximate)
-  /serialString (${serial}) def
-  /textWidthVal serialString stringwidth pop def
-  
-  % Position text in left half, centered
-  ${x + ((boxWidth - qrSize) / 4) - (/textWidthVal 2 div)} ${y + (boxHeight / 2)} M
-  (${serial}) SH
+  % Use PostScript's own text centering mechanism
+  % This is safer than trying to calculate width in JavaScript
+  ${textPosition} ${y + (boxHeight / 2)} M
+  (${serial}) dup stringwidth pop 2 div neg 0 rmoveto SH
 GR
 `;
   });
