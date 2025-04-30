@@ -1,4 +1,3 @@
-
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
@@ -230,57 +229,120 @@ GR
   return epsContent;
 };
 
-// Generate PDF version of the complete layout
+// Generate PDF version of the complete layout - Improved for proper rendering
 export const generatePDF = (data: ExcelRow[]) => {
-  // Create PDF using EPS as base, with appropriate headers
-  const epsContent = generateEPSLayout(data);
+  // Create a valid PDF document with properly encoded content
+  const boxWidth = 50 * 2.83465;  // 50mm in points
+  const boxHeight = 30 * 2.83465; // 30mm in points
+  const padding = 10; // padding between boxes in points
+  const qrPerRow = 4; // fewer per row to accommodate larger box size
+  const rows = Math.ceil(data.length / qrPerRow);
   
-  // Convert EPS to PDF format (basic implementation)
-  let pdfContent = `%PDF-1.4
-%âãÏÓ
+  const pageWidth = (boxWidth + padding) * qrPerRow + padding;
+  const pageHeight = (boxHeight + padding) * rows + padding;
+  
+  // Create a more standards-compliant PDF
+  let pdfContent = `%PDF-1.7
 1 0 obj
-<</Type /Catalog
-/Pages 2 0 R>>
+<< /Type /Catalog /Pages 2 0 R >>
 endobj
 2 0 obj
-<</Type /Pages
-/Kids [3 0 R]
-/Count 1>>
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
 endobj
 3 0 obj
-<</Type /Page
-/Parent 2 0 R
-/Resources <</ProcSet [/PDF /Text /ImageB /ImageC /ImageI]>>
-/MediaBox [0 0 595.28 841.89]
-/Contents 4 0 R>>
+<< /Type /Page
+   /Parent 2 0 R
+   /MediaBox [0 0 ${pageWidth} ${pageHeight}]
+   /Contents 4 0 R
+   /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >>
+>>
 endobj
 4 0 obj
-<</Length 5 0 R>>
+<< /Length 7 0 R >>
 stream
-${epsContent}
+BT
+/F1 12 Tf
+10 ${pageHeight - 20} Td
+(QR Code Layout - Generated for Adobe Illustrator) Tj
+ET
+`;
+
+  // Add rectangles and text for each QR code box
+  data.forEach((row, index) => {
+    const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
+    
+    const col = index % qrPerRow;
+    const rowNum = Math.floor(index / qrPerRow);
+    
+    const x = padding + col * (boxWidth + padding);
+    const y = pageHeight - (padding + (rowNum + 1) * (boxHeight + padding));
+    
+    // Right side for QR code (centered vertically)
+    const qrX = x + boxWidth - boxHeight * 0.8 - 5; // 5 points from right edge
+    const qrY = y + (boxHeight - boxHeight * 0.8) / 2;
+    
+    // Text positioning
+    const textX = x + ((boxWidth - boxHeight * 0.8) / 2) - 20;
+    const textY = y + (boxHeight / 2);
+    
+    // Draw box
+    pdfContent += `
+% Box ${index + 1}
+${x} ${y} ${boxWidth} ${boxHeight} re
+S
+
+% QR code placeholder
+${qrX} ${qrY} ${boxHeight * 0.8} ${boxHeight * 0.8} re
+f
+
+% Serial text
+BT
+/F2 10 Tf
+${textX} ${textY} Td
+(${serial}) Tj
+ET
+
+% Index number
+BT
+/F1 8 Tf
+${x + 5} ${y + boxHeight - 10} Td
+(${index + 1}.) Tj
+ET
+`;
+  });
+  
+  pdfContent += `
 endstream
 endobj
+7 0 obj
+${pdfContent.split('stream')[1].split('endstream')[0].length}
+endobj
 5 0 obj
-${epsContent.length}
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
 endobj
 xref
-0 6
+0 8
 0000000000 65535 f
-0000000015 00000 n
-0000000066 00000 n
-0000000123 00000 n
-0000000266 00000 n
-0000000${(266 + epsContent.length).toString().padStart(6, '0')} 00000 n
+0000000009 00000 n
+0000000058 00000 n
+0000000115 00000 n
+0000000274 00000 n
+0000000${pdfContent.split('stream')[1].split('endstream')[0].length + 300} 00000 n
+0000000${pdfContent.split('stream')[1].split('endstream')[0].length + 360} 00000 n
+0000000${pdfContent.split('stream')[1].split('endstream')[0].length + 274} 00000 n
 trailer
-<</Size 6
-/Root 1 0 R>>
+<< /Size 8 /Root 1 0 R >>
 startxref
-${266 + epsContent.length + 20}
+${pdfContent.split('stream')[1].split('endstream')[0].length + 425}
 %%EOF`;
 
   return pdfContent;
 };
 
+// Generate a complete layout in EPS format with specific dimensions
 export const generateIllustratorFile = (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf' = 'svg'): Promise<Blob> => {
   const zip = new JSZip();
   const folder = zip.folder("qr_codes");
