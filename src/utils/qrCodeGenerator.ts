@@ -229,7 +229,7 @@ GR
 };
 
 // Generate PDF version of the complete layout
-export const generatePDF = (data: ExcelRow[]): string {
+export const generatePDF = (data: ExcelRow[]) => {
   // Create PDF using EPS as base, with appropriate headers
   const epsContent = generateEPSLayout(data);
   
