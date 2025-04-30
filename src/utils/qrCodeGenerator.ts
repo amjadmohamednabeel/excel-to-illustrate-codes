@@ -218,6 +218,30 @@ GR
   return epsContent;
 };
 
+// Generate QR code data URI for embedding in PDF
+export const generateQRCodeDataURI = async (text: string): Promise<string> => {
+  try {
+    // Generate QR code as data URL
+    const dataUrl = await QRCode.toDataURL(text, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 200,
+      color: {
+        dark: '#000000',
+        light: '#ffffff'
+      }
+    });
+    
+    // Convert data URL to raw binary data
+    const base64Data = dataUrl.split(',')[1];
+    return base64Data;
+  } catch (error) {
+    console.error('Error generating QR code data URI:', error);
+    // Return a 1x1 transparent PNG as fallback
+    return 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  }
+};
+
 // Generate PDF version of the complete layout - Improved for proper rendering with actual QR codes
 export const generatePDF = async (data: ExcelRow[]) => {
   const boxWidth = 50 * 2.83465;  // 50mm in points
