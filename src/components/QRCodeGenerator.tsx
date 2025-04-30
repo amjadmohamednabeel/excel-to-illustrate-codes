@@ -64,7 +64,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
               <div className="grid grid-cols-4 gap-2">
                 {data.slice(0, 24).map((row, index) => {
                   const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
-                  const qrText = row['QR Code Text'] || row.qrCodeText || '';
+                  const qrText = row['QR Code Text'] || row.qrCodeText || serial;
                   
                   return (
                     <div key={index} className="border p-2 flex flex-row justify-between items-center" style={{ width: '200px', height: '80px' }}>
@@ -73,7 +73,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                         <div className="text-xs font-bold my-1 text-center">{serial}</div>
                       </div>
                       <div className="flex justify-center items-center w-1/2">
-                        <QRCodeSVG value={qrText || serial} size={50} />
+                        <QRCodeSVG value={qrText} size={50} />
                       </div>
                     </div>
                   );
