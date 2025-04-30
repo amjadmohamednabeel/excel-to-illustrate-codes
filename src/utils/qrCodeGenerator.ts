@@ -1,7 +1,8 @@
+
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
-import QRCode from 'qrcode';
+import * as QRCode from 'qrcode';
 
 // Generate QR code as SVG
 export const generateQRCodeSVG = (text: string, index: number): string => {
