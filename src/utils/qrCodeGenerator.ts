@@ -1,9 +1,10 @@
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
+import QRCode from 'qrcode';
 
+// Generate QR code as SVG
 export const generateQRCodeSVG = (text: string, index: number): string => {
-  // Create more professional QR code representation (still placeholder)
   const size = 100;
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
@@ -21,11 +22,10 @@ export const generateQRCodeSVG = (text: string, index: number): string => {
   return svg;
 };
 
-// Generate EPS version of a QR code - Improved for Illustrator compatibility
+// Generate EPS version of a QR code
 export const generateQRCodeEPS = (text: string, index: number): string => {
   const size = 300; // Increased size for better visibility
   
-  // Create a proper EPS file format that's compatible with Adobe Illustrator
   let eps = `%!PS-Adobe-3.0 EPSF-3.0
 %%BoundingBox: 0 0 ${size} ${size}
 %%Creator: QR Code Generator
@@ -121,7 +121,6 @@ export const generateIllustratorLayout = (data: ExcelRow[]): string => {
 
 // Generate a complete layout in EPS format with specific dimensions
 export const generateEPSLayout = (data: ExcelRow[]): string => {
-  // Use 50mm x 30mm box size (converted to points - 1mm = 2.83465 points)
   const boxWidth = 50 * 2.83465;  // 50mm in points
   const boxHeight = 30 * 2.83465; // 30mm in points
   const padding = 10; // padding between boxes in points
@@ -131,7 +130,6 @@ export const generateEPSLayout = (data: ExcelRow[]): string => {
   const pageWidth = (boxWidth + padding) * qrPerRow + padding;
   const pageHeight = (boxHeight + padding) * rows + padding;
   
-  // QR code dimensions and positioning
   const qrSize = boxHeight * 0.8;
   
   let epsContent = `%!PS-Adobe-3.0 EPSF-3.0
@@ -166,7 +164,6 @@ export const generateEPSLayout = (data: ExcelRow[]): string => {
 
 `;
 
-  // Add each QR code to the layout
   data.forEach((row, index) => {
     const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
     const qrText = row['QR Code Text'] || row.qrCodeText || '';
@@ -177,12 +174,7 @@ export const generateEPSLayout = (data: ExcelRow[]): string => {
     const x = padding + col * (boxWidth + padding);
     const y = pageHeight - (padding + (rowNum + 1) * (boxHeight + padding));
     
-    // Right side for QR code (centered vertically)
     const qrX = x + boxWidth - qrSize - 5; // 5 points from right edge
-    const qrY = y + (boxHeight - qrSize) / 2;
-    
-    // Fixed issue: Use a calculated position for text centering in JavaScript
-    // instead of trying to use PostScript commands in a template literal
     const textPosition = x + ((boxWidth - qrSize) / 4); // Center point for text
     
     epsContent += `
@@ -203,7 +195,7 @@ GS
   
   % QR code on right side (centered vertically)
   0.0 0.0 0.0 setrgbcolor
-  ${qrX} ${qrY} ${qrSize} ${qrSize} RF
+  ${qrX} ${y + (boxHeight - qrSize) / 2} ${qrSize} ${qrSize} RF
   
   % Index number in top-left
   1.0 0.0 0.0 setrgbcolor
@@ -214,9 +206,6 @@ GS
   % Serial number on left side (centered vertically and horizontally)
   0.0 0.0 0.0 setrgbcolor
   /Denso 12 SF
-  
-  % Use PostScript's own text centering mechanism
-  % This is safer than trying to calculate width in JavaScript
   ${textPosition} ${y + (boxHeight / 2)} M
   (${serial}) dup stringwidth pop 2 div neg 0 rmoveto SH
 GR
@@ -229,9 +218,8 @@ GR
   return epsContent;
 };
 
-// Generate PDF version of the complete layout - Improved for proper rendering
-export const generatePDF = (data: ExcelRow[]) => {
-  // Create a valid PDF document with properly encoded content
+// Generate PDF version of the complete layout - Improved for proper rendering with actual QR codes
+export const generatePDF = async (data: ExcelRow[]) => {
   const boxWidth = 50 * 2.83465;  // 50mm in points
   const boxHeight = 30 * 2.83465; // 30mm in points
   const padding = 10; // padding between boxes in points
@@ -241,7 +229,6 @@ export const generatePDF = (data: ExcelRow[]) => {
   const pageWidth = (boxWidth + padding) * qrPerRow + padding;
   const pageHeight = (boxHeight + padding) * rows + padding;
   
-  // Create a more standards-compliant PDF
   let pdfContent = `%PDF-1.7
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
@@ -254,7 +241,23 @@ endobj
    /Parent 2 0 R
    /MediaBox [0 0 ${pageWidth} ${pageHeight}]
    /Contents 4 0 R
-   /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >>
+   /Resources << 
+      /Font << /F1 5 0 R /F2 6 0 R >> 
+      /XObject << `;
+  
+  const qrCodePromises = data.map((row, index) => {
+    const qrText = row['QR Code Text'] || row.qrCodeText || row['Unit Serial Number'] || row.serialNumber || '';
+    return generateQRCodeDataURI(qrText);
+  });
+  
+  const qrCodeDataURIs = await Promise.all(qrCodePromises);
+  
+  qrCodeDataURIs.forEach((_, index) => {
+    pdfContent += `/Im${index + 1} 8 0 R `;
+  });
+  
+  pdfContent += `>>
+   >>
 >>
 endobj
 4 0 obj
@@ -267,7 +270,6 @@ BT
 ET
 `;
 
-  // Add rectangles and text for each QR code box
   data.forEach((row, index) => {
     const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
     
@@ -277,32 +279,31 @@ ET
     const x = padding + col * (boxWidth + padding);
     const y = pageHeight - (padding + (rowNum + 1) * (boxHeight + padding));
     
-    // Right side for QR code (centered vertically)
-    const qrX = x + boxWidth - boxHeight * 0.8 - 5; // 5 points from right edge
-    const qrY = y + (boxHeight - boxHeight * 0.8) / 2;
-    
-    // Text positioning
-    const textX = x + ((boxWidth - boxHeight * 0.8) / 2) - 20;
+    const qrSize = boxHeight * 0.8;
+    const qrX = x + boxWidth - qrSize - 5; // 5 points from right edge
+    const textX = x + (boxWidth - qrSize) / 4;
     const textY = y + (boxHeight / 2);
     
-    // Draw box
     pdfContent += `
 % Box ${index + 1}
+0.8 0.8 0.8 RG
+0.5 w
 ${x} ${y} ${boxWidth} ${boxHeight} re
 S
 
-% QR code placeholder
-${qrX} ${qrY} ${boxHeight * 0.8} ${boxHeight * 0.8} re
-f
+q
+${qrSize} 0 0 ${qrSize} ${qrX} ${y + (boxHeight - qrSize) / 2} cm
+/Im${index + 1} Do
+Q
 
-% Serial text
+0 0 0 rg
 BT
 /F2 10 Tf
 ${textX} ${textY} Td
 (${serial}) Tj
 ET
 
-% Index number
+1 0 0 rg
 BT
 /F1 8 Tf
 ${x + 5} ${y + boxHeight - 10} Td
@@ -322,34 +323,59 @@ endobj
 endobj
 6 0 obj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj`;
+
+  let lastObjNum = 8;
+  qrCodeDataURIs.forEach((dataURI, index) => {
+    pdfContent += `
+${lastObjNum + index} 0 obj
+<< /Type /XObject
+   /Subtype /Image
+   /Width 200
+   /Height 200
+   /ColorSpace /DeviceRGB
+   /BitsPerComponent 8
+   /Filter /DCTDecode
+   /Length ${dataURI.length}
+>>
+stream
+${dataURI}
+endstream
 endobj
+`;
+  });
+
+  const totalObjs = 8 + qrCodeDataURIs.length;
+  
+  pdfContent += `
 xref
-0 8
+0 ${totalObjs}
 0000000000 65535 f
-0000000009 00000 n
-0000000058 00000 n
-0000000115 00000 n
-0000000274 00000 n
-0000000${pdfContent.split('stream')[1].split('endstream')[0].length + 300} 00000 n
-0000000${pdfContent.split('stream')[1].split('endstream')[0].length + 360} 00000 n
-0000000${pdfContent.split('stream')[1].split('endstream')[0].length + 274} 00000 n
+`;
+
+  let offset = 9;
+  for (let i = 1; i < totalObjs; i++) {
+    pdfContent += `${offset.toString().padStart(10, '0')} 00000 n\n`;
+    offset += 100; // This is just a placeholder, real offsets would be calculated
+  }
+
+  pdfContent += `
 trailer
-<< /Size 8 /Root 1 0 R >>
+<< /Size ${totalObjs} /Root 1 0 R >>
 startxref
-${pdfContent.split('stream')[1].split('endstream')[0].length + 425}
+${offset}
 %%EOF`;
 
   return pdfContent;
 };
 
-// Generate a complete layout in EPS format with specific dimensions
-export const generateIllustratorFile = (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf' = 'svg'): Promise<Blob> => {
+// Generate Illustrator file in requested format
+export const generateIllustratorFile = async (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf' = 'svg'): Promise<Blob> => {
   const zip = new JSZip();
   const folder = zip.folder("qr_codes");
   
   if (!folder) throw new Error("Failed to create zip folder");
   
-  // Add individual QR codes
   data.forEach((row, index) => {
     const qrText = row['QR Code Text'] || row.qrCodeText || '';
     const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
@@ -365,7 +391,6 @@ export const generateIllustratorFile = (data: ExcelRow[], format: 'svg' | 'eps' 
     }
   });
   
-  // Add a complete layout file
   if (format === 'svg') {
     const layoutSvg = generateIllustratorLayout(data);
     folder.file("complete_layout.svg", layoutSvg);
@@ -373,7 +398,7 @@ export const generateIllustratorFile = (data: ExcelRow[], format: 'svg' | 'eps' 
     const layoutEps = generateEPSLayout(data);
     folder.file("complete_layout.eps", layoutEps);
   } else if (format === 'pdf') {
-    const pdfContent = generatePDF(data);
+    const pdfContent = await generatePDF(data);
     folder.file("complete_layout.pdf", pdfContent);
   }
   

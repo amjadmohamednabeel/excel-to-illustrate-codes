@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from '@/components/ui/use-toast';
 import { ExcelRow } from '@/utils/excelParser';
-import { downloadIllustratorFiles, generateIllustratorLayout } from '@/utils/qrCodeGenerator';
+import { downloadIllustratorFiles } from '@/utils/qrCodeGenerator';
 import { QRCodeSVG } from 'qrcode.react';
 import { Download } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -33,6 +33,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
         description: `Failed to generate QR codes in ${fileFormat.toUpperCase()} format`,
         variant: "destructive",
       });
+      console.error("QR code generation error:", error);
     } finally {
       setIsGenerating(false);
     }
