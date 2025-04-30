@@ -17,7 +17,7 @@ interface QRCodeGeneratorProps {
 const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [fileFormat, setFileFormat] = useState<'svg' | 'eps'>('svg');
+  const [fileFormat, setFileFormat] = useState<'svg' | 'eps' | 'pdf'>('svg');
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -60,23 +60,27 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
           
           {showPreview && data.length > 0 && (
             <div className="overflow-auto max-h-[400px] border rounded p-4 w-full">
-              <div className="grid grid-cols-5 gap-2">
-                {data.slice(0, 25).map((row, index) => {
+              <div className="grid grid-cols-4 gap-2">
+                {data.slice(0, 24).map((row, index) => {
                   const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
                   const qrText = row['QR Code Text'] || row.qrCodeText || '';
                   
                   return (
-                    <div key={index} className="border p-2 flex flex-col items-center">
-                      <div className="text-red-500 text-xs text-left w-full">{index + 1}.</div>
-                      <div className="text-xs font-bold my-1">{serial}</div>
-                      <QRCodeSVG value={qrText || serial} size={50} />
+                    <div key={index} className="border p-2 flex flex-row justify-between items-center" style={{ width: '200px', height: '80px' }}>
+                      <div className="flex flex-col items-center justify-center w-1/2">
+                        <div className="text-red-500 text-xs text-left w-full">{index + 1}.</div>
+                        <div className="text-xs font-bold my-1 text-center">{serial}</div>
+                      </div>
+                      <div className="flex justify-center items-center w-1/2">
+                        <QRCodeSVG value={qrText || serial} size={50} />
+                      </div>
                     </div>
                   );
                 })}
               </div>
-              {data.length > 25 && (
+              {data.length > 24 && (
                 <div className="text-center mt-2 text-sm text-gray-500">
-                  Preview showing first 25 items (of {data.length} total)
+                  Preview showing first 24 items (of {data.length} total)
                 </div>
               )}
             </div>
@@ -88,7 +92,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
             <h3 className="text-sm font-medium mb-2">Choose File Format:</h3>
             <RadioGroup
               value={fileFormat}
-              onValueChange={(value) => setFileFormat(value as 'svg' | 'eps')}
+              onValueChange={(value) => setFileFormat(value as 'svg' | 'eps' | 'pdf')}
               className="flex space-x-4"
             >
               <div className="flex items-center space-x-2">
@@ -99,16 +103,48 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                 <RadioGroupItem value="eps" id="eps" />
                 <Label htmlFor="eps">EPS Format</Label>
               </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="pdf" id="pdf" />
+                <Label htmlFor="pdf">PDF Format</Label>
+              </div>
             </RadioGroup>
           </div>
           
+          <div className="bg-blue-50 p-3 rounded text-sm">
+            <p className="font-medium text-blue-700">Format Details:</p>
+            <ul className="list-disc list-inside text-blue-600 mt-1 space-y-1">
+              {fileFormat === 'eps' && (
+                <>
+                  <li>EPS files with 50mm × 30mm boxes</li>
+                  <li>QR codes positioned on the right side</li>
+                  <li>Serial numbers centered on the left side</li>
+                  <li>Includes both individual QR codes and complete layout</li>
+                </>
+              )}
+              {fileFormat === 'pdf' && (
+                <>
+                  <li>PDF file with 50mm × 30mm boxes</li>
+                  <li>QR codes positioned on the right side</li>
+                  <li>Serial numbers centered on the left side</li>
+                  <li>Complete layout in a single PDF file</li>
+                </>
+              )}
+              {fileFormat === 'svg' && (
+                <>
+                  <li>SVG files for easy web usage</li>
+                  <li>Individual QR codes in separate files</li>
+                  <li>Complete layout in a single SVG file</li>
+                </>
+              )}
+            </ul>
+          </div>
+          
           <p className="text-sm text-gray-500 mt-2">
-            This will generate {fileFormat.toUpperCase()} QR codes that can be imported into Adobe Illustrator.
             You will receive a ZIP file containing:
           </p>
           <ul className="list-disc list-inside text-sm text-gray-500 ml-4">
             <li>Individual QR code {fileFormat.toUpperCase()} files for each row</li>
-            {fileFormat === 'svg' && <li>A complete layout SVG with all QR codes arranged in a grid</li>}
+            <li>A complete layout in {fileFormat.toUpperCase()} format with all QR codes arranged</li>
           </ul>
         </div>
       </CardContent>

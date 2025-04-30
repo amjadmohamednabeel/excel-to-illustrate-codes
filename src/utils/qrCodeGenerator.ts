@@ -119,15 +119,20 @@ export const generateIllustratorLayout = (data: ExcelRow[]): string => {
   return svgContent;
 };
 
-// Generate a complete layout in EPS format
+// Generate a complete layout in EPS format with specific dimensions
 export const generateEPSLayout = (data: ExcelRow[]): string => {
-  const qrSize = 150;
-  const padding = 20;
-  const qrPerRow = 5;
+  // Use 50mm x 30mm box size (converted to points - 1mm = 2.83465 points)
+  const boxWidth = 50 * 2.83465;  // 50mm in points
+  const boxHeight = 30 * 2.83465; // 30mm in points
+  const padding = 10; // padding between boxes in points
+  const qrPerRow = 4; // fewer per row to accommodate larger box size
   const rows = Math.ceil(data.length / qrPerRow);
   
-  const pageWidth = (qrSize + padding) * qrPerRow + padding;
-  const pageHeight = (qrSize + padding) * rows + padding;
+  const pageWidth = (boxWidth + padding) * qrPerRow + padding;
+  const pageHeight = (boxHeight + padding) * rows + padding;
+  
+  // QR code dimensions and positioning
+  const qrSize = boxHeight * 0.8;
   
   let epsContent = `%!PS-Adobe-3.0 EPSF-3.0
 %%BoundingBox: 0 0 ${pageWidth} ${pageHeight}
@@ -151,6 +156,10 @@ export const generateEPSLayout = (data: ExcelRow[]): string => {
 /SH {show} def
 %%EndProlog
 
+% Font setup - Using Helvetica as fallback for Denso
+/Denso-Font /Helvetica findfont def
+/Denso /Helvetica-Bold findfont def
+
 % White background for entire page
 1.0 1.0 1.0 setrgbcolor
 0 0 ${pageWidth} ${pageHeight} RF
@@ -165,40 +174,49 @@ export const generateEPSLayout = (data: ExcelRow[]): string => {
     const col = index % qrPerRow;
     const rowNum = Math.floor(index / qrPerRow);
     
-    const x = padding + col * (qrSize + padding);
-    const y = pageHeight - (padding + (rowNum + 1) * (qrSize + padding));
+    const x = padding + col * (boxWidth + padding);
+    const y = pageHeight - (padding + (rowNum + 1) * (boxHeight + padding));
+    
+    // Right side for QR code (centered vertically)
+    const qrX = x + boxWidth - qrSize - 5; // 5 points from right edge
+    const qrY = y + (boxHeight - qrSize) / 2;
     
     epsContent += `
-% QR Code ${index + 1}
+% QR Code and Label ${index + 1}
 GS
-  % Cell background
+  % Box background and border
   1.0 1.0 1.0 setrgbcolor
-  ${x} ${y} ${qrSize} ${qrSize} RF
+  ${x} ${y} ${boxWidth} ${boxHeight} RF
   
-  % Border
   0.8 0.8 0.8 setrgbcolor
   0.5 setlinewidth
   ${x} ${y} M
-  ${qrSize} 0 RL
-  0 ${qrSize} RL
-  ${-qrSize} 0 RL
+  ${boxWidth} 0 RL
+  0 ${boxHeight} RL
+  ${-boxWidth} 0 RL
   CP
   S
   
-  % QR code placeholder
+  % QR code on right side (centered vertically)
   0.0 0.0 0.0 setrgbcolor
-  ${x + qrSize * 0.1} ${y + qrSize * 0.1} ${qrSize * 0.8} ${qrSize * 0.8} RF
+  ${qrX} ${qrY} ${qrSize} ${qrSize} RF
   
-  % Index number
+  % Index number in top-left
   1.0 0.0 0.0 setrgbcolor
-  /Helvetica-Bold 12 SF
-  ${x + 5} ${y + qrSize - 10} M
+  /Denso 10 SF
+  ${x + 5} ${y + boxHeight - 10} M
   (${index + 1}.) SH
   
-  % Serial number
+  % Serial number on left side (centered vertically and horizontally)
   0.0 0.0 0.0 setrgbcolor
-  /Helvetica 8 SF
-  ${x + qrSize/2} ${y + qrSize/2} M
+  /Denso 12 SF
+  
+  % Calculate text width for centering (approximate)
+  /serialString (${serial}) def
+  /textWidth serialString stringwidth pop def
+  
+  % Position text in left half, centered
+  ${x + ((boxWidth - qrSize) / 4) - (textWidth / 2)} ${y + (boxHeight / 2)} M
   (${serial}) SH
 GR
 `;
@@ -210,7 +228,58 @@ GR
   return epsContent;
 };
 
-export const generateIllustratorFile = (data: ExcelRow[], format: 'svg' | 'eps' = 'svg'): Promise<Blob> => {
+// Generate PDF version of the complete layout
+export const generatePDF = (data: ExcelRow[]): string {
+  // Create PDF using EPS as base, with appropriate headers
+  const epsContent = generateEPSLayout(data);
+  
+  // Convert EPS to PDF format (basic implementation)
+  let pdfContent = `%PDF-1.4
+%âãÏÓ
+1 0 obj
+<</Type /Catalog
+/Pages 2 0 R>>
+endobj
+2 0 obj
+<</Type /Pages
+/Kids [3 0 R]
+/Count 1>>
+endobj
+3 0 obj
+<</Type /Page
+/Parent 2 0 R
+/Resources <</ProcSet [/PDF /Text /ImageB /ImageC /ImageI]>>
+/MediaBox [0 0 595.28 841.89]
+/Contents 4 0 R>>
+endobj
+4 0 obj
+<</Length 5 0 R>>
+stream
+${epsContent}
+endstream
+endobj
+5 0 obj
+${epsContent.length}
+endobj
+xref
+0 6
+0000000000 65535 f
+0000000015 00000 n
+0000000066 00000 n
+0000000123 00000 n
+0000000266 00000 n
+0000000${(266 + epsContent.length).toString().padStart(6, '0')} 00000 n
+trailer
+<</Size 6
+/Root 1 0 R>>
+startxref
+${266 + epsContent.length + 20}
+%%EOF`;
+
+  return pdfContent;
+};
+
+export const generateIllustratorFile = (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf' = 'svg'): Promise<Blob> => {
   const zip = new JSZip();
   const folder = zip.folder("qr_codes");
   
@@ -225,7 +294,7 @@ export const generateIllustratorFile = (data: ExcelRow[], format: 'svg' | 'eps' 
       if (format === 'svg') {
         const svg = generateQRCodeSVG(qrText, index + 1);
         folder.file(`QR_${serial}.svg`, svg);
-      } else {
+      } else if (format === 'eps') {
         const eps = generateQRCodeEPS(qrText, index + 1);
         folder.file(`QR_${serial}.eps`, eps);
       }
@@ -236,18 +305,21 @@ export const generateIllustratorFile = (data: ExcelRow[], format: 'svg' | 'eps' 
   if (format === 'svg') {
     const layoutSvg = generateIllustratorLayout(data);
     folder.file("complete_layout.svg", layoutSvg);
-  } else {
+  } else if (format === 'eps') {
     const layoutEps = generateEPSLayout(data);
     folder.file("complete_layout.eps", layoutEps);
+  } else if (format === 'pdf') {
+    const pdfContent = generatePDF(data);
+    folder.file("complete_layout.pdf", pdfContent);
   }
   
   return zip.generateAsync({ type: "blob" });
 };
 
-export const downloadIllustratorFiles = async (data: ExcelRow[], format: 'svg' | 'eps' = 'svg'): Promise<void> => {
+export const downloadIllustratorFiles = async (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf' = 'svg'): Promise<void> => {
   try {
     const blob = await generateIllustratorFile(data, format);
-    const extension = format === 'svg' ? 'svg' : 'eps';
+    const extension = format === 'svg' ? 'svg' : format === 'eps' ? 'eps' : 'pdf';
     saveAs(blob, `qr_codes_for_illustrator_${extension}.zip`);
   } catch (error) {
     console.error(`Failed to generate ${format.toUpperCase()} files:`, error);
