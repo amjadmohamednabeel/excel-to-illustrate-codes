@@ -213,10 +213,10 @@ GS
   
   % Calculate text width for centering (approximate)
   /serialString (${serial}) def
-  /textWidth serialString stringwidth pop def
+  /textWidthVal serialString stringwidth pop def
   
   % Position text in left half, centered
-  ${x + ((boxWidth - qrSize) / 4) - (textWidth / 2)} ${y + (boxHeight / 2)} M
+  ${x + ((boxWidth - qrSize) / 4) - (/textWidthVal 2 div)} ${y + (boxHeight / 2)} M
   (${serial}) SH
 GR
 `;
