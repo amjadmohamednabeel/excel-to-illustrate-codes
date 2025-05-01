@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,27 +5,118 @@ import { toast } from '@/components/ui/use-toast';
 import { ExcelRow } from '@/utils/excelParser';
 import { downloadIllustratorFiles } from '@/utils/qrCodeGenerator';
 import { QRCodeSVG } from 'qrcode.react';
-import { Download } from 'lucide-react';
+import { Download, Settings2 } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
+import { GenerationOptions } from '@/utils/qrCodeGenerator';
 
 interface QRCodeGeneratorProps {
   data: ExcelRow[];
 }
 
+const fontOptions = [
+  { value: 'helvetica', label: 'Helvetica' },
+  { value: 'helvetica-bold', label: 'Helvetica Bold' },
+  { value: 'times', label: 'Times Roman' },
+  { value: 'courier', label: 'Courier' },
+];
+
+const pageSizes = [
+  { value: 'a4', label: 'A4 (210 × 297 mm)' },
+  { value: 'a3', label: 'A3 (297 × 420 mm)' },
+  { value: 'letter', label: 'Letter (8.5 × 11 in)' },
+  { value: 'custom', label: 'Custom Size' },
+];
+
 const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [fileFormat, setFileFormat] = useState<'svg' | 'eps' | 'pdf'>('pdf'); // Default to PDF format
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [fileFormat, setFileFormat] = useState<'svg' | 'eps' | 'pdf'>('pdf');
   const [previewPage, setPreviewPage] = useState(0);
   
-  const itemsPerPage = 25;
-  const totalPages = Math.ceil(data.length / itemsPerPage);
+  // Layout options
+  const [boxWidth, setBoxWidth] = useState(50); // Default box width in mm
+  const [boxHeight, setBoxHeight] = useState(30); // Default box height in mm
+  const [qrCodeSize, setQrCodeSize] = useState(60); // Default QR code size percentage (60% of box height)
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [fontSize, setFontSize] = useState(9); // Default font size
+  const [pageSize, setPageSize] = useState('a4'); // Default page size
+  const [customWidth, setCustomWidth] = useState(210); // Default custom width in mm
+  const [customHeight, setCustomHeight] = useState(297); // Default custom height in mm
+  const [fontFamily, setFontFamily] = useState('helvetica-bold'); // Default font
+  const [boxesPerRow, setBoxesPerRow] = useState<number | null>(null); // Auto-calculate by default
+  const [boxesPerColumn, setBoxesPerColumn] = useState<number | null>(null); // Auto-calculate by default
+  const [boxesPerPage, setBoxesPerPage] = useState<number>(25);
+
+  // Calculate boxes per page based on current settings
+  React.useEffect(() => {
+    // If manual boxes per row/column are set, use those values
+    if (boxesPerRow !== null && boxesPerColumn !== null) {
+      setBoxesPerPage(boxesPerRow * boxesPerColumn);
+      return;
+    }
+
+    // Otherwise calculate automatically based on page size and box dimensions
+    const pageDimensions = getPageDimensions();
+    const marginSpace = 20; // 10mm on each side
+    
+    // Calculate max boxes that can fit in each dimension
+    const maxBoxesInWidth = Math.floor((pageDimensions.width - marginSpace) / boxWidth);
+    const maxBoxesInHeight = Math.floor((pageDimensions.height - marginSpace) / boxHeight);
+    
+    // Update calculated values
+    setBoxesPerPage(maxBoxesInWidth * maxBoxesInHeight);
+  }, [boxWidth, boxHeight, orientation, pageSize, customWidth, customHeight, boxesPerRow, boxesPerColumn]);
+  
+  // Get current page dimensions in mm based on settings
+  const getPageDimensions = () => {
+    if (pageSize === 'custom') {
+      return orientation === 'portrait' 
+        ? { width: customWidth, height: customHeight }
+        : { width: customHeight, height: customWidth };
+    }
+    
+    let width, height;
+    switch (pageSize) {
+      case 'a3':
+        width = 297; height = 420;
+        break;
+      case 'letter':
+        width = 215.9; height = 279.4;
+        break;
+      case 'a4':
+      default:
+        width = 210; height = 297;
+    }
+    
+    return orientation === 'portrait' 
+      ? { width, height }
+      : { width: height, height: width };
+  };
+
+  const totalPages = Math.ceil(data.length / boxesPerPage);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
     try {
-      await downloadIllustratorFiles(data, fileFormat);
+      const options: GenerationOptions = {
+        boxWidth,
+        boxHeight,
+        qrCodeSize: qrCodeSize / 100, // Convert percentage to decimal
+        orientation,
+        fontSize,
+        pageSize: pageSize === 'custom' ? { width: customWidth, height: customHeight } : pageSize,
+        fontFamily,
+        boxesPerRow: boxesPerRow || undefined, // Use undefined for auto-calculation
+        boxesPerColumn: boxesPerColumn || undefined, // Use undefined for auto-calculation
+      };
+      
+      await downloadIllustratorFiles(data, fileFormat, options);
       toast({
         title: "Success",
         description: `QR codes generated in ${fileFormat.toUpperCase()} format and ready for download`,
@@ -62,9 +152,24 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   
   // Get items for current preview page
   const getCurrentPageItems = () => {
-    const start = previewPage * itemsPerPage;
-    const end = start + itemsPerPage;
+    const start = previewPage * boxesPerPage;
+    const end = start + boxesPerPage;
     return data.slice(start, end);
+  };
+
+  // Reset box layout to default values
+  const resetToDefaults = () => {
+    setBoxWidth(50);
+    setBoxHeight(30);
+    setQrCodeSize(60);
+    setOrientation('portrait');
+    setFontSize(9);
+    setPageSize('a4');
+    setCustomWidth(210);
+    setCustomHeight(297);
+    setFontFamily('helvetica-bold');
+    setBoxesPerRow(null);
+    setBoxesPerColumn(null);
   };
 
   return (
@@ -74,14 +179,29 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-col items-center space-y-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={togglePreview} 
-            className="mb-2"
-          >
-            {showPreview ? "Hide Preview" : "Show Layout Preview"}
-          </Button>
+          <div className="flex space-x-2 w-full">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={togglePreview} 
+              className="mb-2"
+            >
+              {showPreview ? "Hide Preview" : "Show Layout Preview"}
+            </Button>
+            
+            <Collapsible 
+              open={showAdvancedOptions} 
+              onOpenChange={setShowAdvancedOptions}
+              className="flex-grow"
+            >
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" size="sm" className="mb-2 ml-auto">
+                  <Settings2 className="h-4 w-4 mr-2" />
+                  {showAdvancedOptions ? "Hide Options" : "Layout Options"}
+                </Button>
+              </CollapsibleTrigger>
+            </Collapsible>
+          </div>
           
           {showPreview && data.length > 0 && (
             <div className="w-full space-y-2">
@@ -112,7 +232,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
               <div className="overflow-auto max-h-[400px] border rounded p-4 w-full">
                 <div className="grid grid-cols-5 gap-2">
                   {getCurrentPageItems().map((row, index) => {
-                    const actualIndex = previewPage * itemsPerPage + index;
+                    const actualIndex = previewPage * boxesPerPage + index;
                     const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${actualIndex}`;
                     const qrText = row['QR Code Text'] || row.qrCodeText || serial;
                     
@@ -131,7 +251,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                 </div>
                 
                 <div className="text-center mt-2 text-sm text-gray-500">
-                  {data.length > itemsPerPage && (
+                  {data.length > boxesPerPage && (
                     <p>
                       Showing page {previewPage + 1} of {totalPages}. 
                       {totalPages > 1 && ` Full PDF will include ${data.length} items across ${totalPages} pages.`}
@@ -141,6 +261,214 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
               </div>
             </div>
           )}
+
+          <Collapsible 
+            open={showAdvancedOptions}
+            className="w-full border rounded-md p-4 mt-4"
+          >
+            <CollapsibleContent>
+              <div className="space-y-6">
+                {/* Page Settings */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium">Page Settings</h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Page Size</Label>
+                      <Select value={pageSize} onValueChange={setPageSize}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select page size" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pageSizes.map((size) => (
+                            <SelectItem key={size.value} value={size.value}>
+                              {size.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Orientation</Label>
+                      <RadioGroup
+                        value={orientation}
+                        onValueChange={(value) => setOrientation(value as 'portrait' | 'landscape')}
+                        className="flex space-x-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="portrait" id="portrait" />
+                          <Label htmlFor="portrait">Portrait</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="landscape" id="landscape" />
+                          <Label htmlFor="landscape">Landscape</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  </div>
+
+                  {pageSize === 'custom' && (
+                    <div className="grid grid-cols-2 gap-4 mt-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="custom-width" className="text-xs">Width (mm)</Label>
+                        <Input
+                          id="custom-width"
+                          type="number"
+                          min="50"
+                          value={customWidth}
+                          onChange={(e) => setCustomWidth(Number(e.target.value))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="custom-height" className="text-xs">Height (mm)</Label>
+                        <Input
+                          id="custom-height"
+                          type="number"
+                          min="50"
+                          value={customHeight}
+                          onChange={(e) => setCustomHeight(Number(e.target.value))}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Box Settings */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium">Box Settings</h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <Label>Box Width: {boxWidth} mm</Label>
+                      </div>
+                      <Slider
+                        value={[boxWidth]}
+                        min={20}
+                        max={100}
+                        step={1}
+                        onValueChange={(value) => setBoxWidth(value[0])}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <Label>Box Height: {boxHeight} mm</Label>
+                      </div>
+                      <Slider
+                        value={[boxHeight]}
+                        min={15}
+                        max={80}
+                        step={1}
+                        onValueChange={(value) => setBoxHeight(value[0])}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* QR Code Settings */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium">QR Code & Font Settings</h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <Label>QR Code Size: {qrCodeSize}%</Label>
+                      </div>
+                      <Slider
+                        value={[qrCodeSize]}
+                        min={20}
+                        max={90}
+                        step={5}
+                        onValueChange={(value) => setQrCodeSize(value[0])}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <Label>Font Size: {fontSize}pt</Label>
+                      </div>
+                      <Slider
+                        value={[fontSize]}
+                        min={6}
+                        max={14}
+                        step={1}
+                        onValueChange={(value) => setFontSize(value[0])}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Font</Label>
+                    <Select value={fontFamily} onValueChange={setFontFamily}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select font" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {fontOptions.map((font) => (
+                          <SelectItem key={font.value} value={font.value}>
+                            {font.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                {/* Advanced Layout Settings */}
+                <div className="space-y-3 border-t pt-3">
+                  <h3 className="text-sm font-medium">Advanced Layout (Optional)</h3>
+                  <p className="text-xs text-gray-500">Manually specify boxes per row/column or leave empty for auto-calculation</p>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="boxes-per-row" className="text-xs">Boxes Per Row</Label>
+                      <Input
+                        id="boxes-per-row"
+                        type="number"
+                        min="1"
+                        value={boxesPerRow === null ? '' : boxesPerRow}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? null : Number(e.target.value);
+                          setBoxesPerRow(value);
+                        }}
+                        placeholder="Auto"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="boxes-per-column" className="text-xs">Boxes Per Column</Label>
+                      <Input
+                        id="boxes-per-column"
+                        type="number"
+                        min="1"
+                        value={boxesPerColumn === null ? '' : boxesPerColumn}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? null : Number(e.target.value);
+                          setBoxesPerColumn(value);
+                        }}
+                        placeholder="Auto"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-2 text-center">
+                    <p className="text-sm font-medium">
+                      {boxesPerPage} boxes per page ({data.length} items ÷ {boxesPerPage} boxes = {totalPages} pages)
+                    </p>
+                  </div>
+                  
+                  <div className="flex justify-center mt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={resetToDefaults}
+                    >
+                      Reset to Defaults
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
         
         <div className="space-y-4">
@@ -171,7 +499,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
             <ul className="list-disc list-inside text-blue-600 mt-1 space-y-1">
               {fileFormat === 'eps' && (
                 <>
-                  <li>EPS files with 50mm × 30mm boxes</li>
+                  <li>EPS files with {boxWidth}mm × {boxHeight}mm boxes</li>
                   <li>QR codes positioned on the right side</li>
                   <li>Serial numbers centered on the left side</li>
                   <li>Includes both individual QR codes and complete layout</li>
@@ -179,11 +507,11 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
               )}
               {fileFormat === 'pdf' && (
                 <>
-                  <li>A4 PDF with 5×5 grid (25 QR codes per page)</li>
-                  <li>Multiple pages for more than 25 QR codes</li>
+                  <li>{pageSize === 'custom' ? 'Custom size' : pageSizes.find(p => p.value === pageSize)?.label} PDF in {orientation} orientation</li>
+                  <li>Up to {boxesPerPage} QR codes per page</li>
                   <li>Each box includes sequential numbering in red</li>
                   <li>Serial numbers displayed next to each QR code</li>
-                  <li>50mm × 30mm sticker size as shown in reference</li>
+                  <li>{boxWidth}mm × {boxHeight}mm sticker size</li>
                 </>
               )}
               {fileFormat === 'svg' && (
@@ -198,7 +526,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
           
           <p className="text-sm text-gray-500 mt-2">
             {fileFormat === 'pdf' ? 
-              `You will receive a single PDF file with all ${data.length} QR codes in a 5×5 grid layout${data.length > 25 ? ` across ${totalPages} pages` : ''}.` : 
+              `You will receive a single PDF file with all ${data.length} QR codes in a layout${data.length > boxesPerPage ? ` across ${totalPages} pages` : ''}.` : 
               'You will receive a ZIP file containing:'}
           </p>
           {fileFormat !== 'pdf' && (

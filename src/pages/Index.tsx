@@ -17,11 +17,11 @@ const Index = () => {
       <div className="container mx-auto px-4 py-8">
         <header className="text-center mb-12">
           <h1 className="text-3xl font-bold text-blue-800 mb-2">
-            Excel to Adobe Illustrator QR Code Generator
+            Customizable Excel to QR Code Generator
           </h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Upload your Excel file with serial numbers and QR code data to generate 
-            SVG files ready for import into Adobe Illustrator.
+            Upload your Excel file with serial numbers to generate 
+            customizable QR codes in SVG, EPS, or PDF format for Adobe Illustrator.
           </p>
         </header>
 
@@ -48,7 +48,7 @@ const Index = () => {
           {excelData.length > 0 && (
             <section>
               <h2 className="text-xl font-semibold text-blue-700 mb-4">
-                Step 3: Generate QR Codes for Illustrator
+                Step 3: Customize and Generate QR Codes
               </h2>
               <QRCodeGenerator data={excelData} />
             </section>
@@ -62,8 +62,9 @@ const Index = () => {
             <ol className="list-decimal list-inside space-y-2 text-gray-600">
               <li>Upload an Excel file with columns for Count, Unit Serial Number, and QR Code Text</li>
               <li>Preview the data to ensure it's been correctly parsed</li>
-              <li>Generate a ZIP file containing SVG QR codes for each row in your Excel file</li>
-              <li>Import these SVG files into Adobe Illustrator to use in your designs</li>
+              <li>Customize your QR code layout, size, and appearance</li>
+              <li>Choose your preferred file format (PDF, SVG, or EPS)</li>
+              <li>Generate and download your files for use in Adobe Illustrator or other design software</li>
             </ol>
           </section>
         </div>
