@@ -363,6 +363,54 @@ export const generatePDF = async (data: ExcelRow[]) => {
   return pdf.output('blob');
 };
 
+// Generate the illustrator-ready file in the requested format (SVG, EPS, or PDF)
+export const generateIllustratorFile = async (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf'): Promise<Blob> => {
+  try {
+    // For PDF format, use the existing generatePDF function
+    if (format === 'pdf') {
+      return await generatePDF(data);
+    }
+    
+    // For SVG and EPS formats, create a ZIP with individual files and a complete layout
+    const zip = new JSZip();
+    
+    // Create a folder for individual QR codes
+    const individualFolder = zip.folder('individual-qr-codes');
+    const layoutFolder = zip.folder('complete-layout');
+    
+    // Add individual QR codes
+    data.forEach((row, index) => {
+      const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
+      const qrText = row['QR Code Text'] || row.qrCodeText || serial;
+      
+      // Generate the appropriate format
+      let fileContent = '';
+      if (format === 'svg') {
+        fileContent = generateQRCodeSVG(qrText, index + 1);
+      } else if (format === 'eps') {
+        fileContent = generateQRCodeEPS(qrText, index + 1);
+      }
+      
+      // Add to the zip
+      const fileName = `qr-code-${index + 1}-${serial.replace(/[^a-zA-Z0-9]/g, '_')}.${format}`;
+      individualFolder?.file(fileName, fileContent);
+    });
+    
+    // Add the complete layout file
+    if (format === 'svg') {
+      layoutFolder?.file(`complete-layout.svg`, generateIllustratorLayout(data));
+    } else if (format === 'eps') {
+      layoutFolder?.file(`complete-layout.eps`, generateEPSLayout(data));
+    }
+    
+    // Generate the ZIP file
+    return await zip.generateAsync({ type: "blob" });
+  } catch (error) {
+    console.error(`Error generating ${format} files:`, error);
+    throw error;
+  }
+};
+
 export const downloadIllustratorFiles = async (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf' = 'svg'): Promise<void> => {
   try {
     const blob = await generateIllustratorFile(data, format);
