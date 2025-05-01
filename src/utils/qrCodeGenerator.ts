@@ -231,166 +231,92 @@ export const generateQRCodeDataURI = async (text: string): Promise<string> => {
         light: '#ffffff'
       }
     });
-    
-    // Convert data URL to raw binary data
-    const base64Data = dataUrl.split(',')[1];
-    return base64Data;
+    return dataUrl;
   } catch (error) {
     console.error('Error generating QR code data URI:', error);
-    // Return a 1x1 transparent PNG as fallback
-    return 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    // Return a placeholder for error cases
+    return '';
   }
 };
 
-// Generate PDF version of the complete layout - Improved for proper rendering with actual QR codes
+// Generate PDF version with improved layout for A4 with 25 boxes
 export const generatePDF = async (data: ExcelRow[]) => {
-  const boxWidth = 50 * 2.83465;  // 50mm in points
-  const boxHeight = 30 * 2.83465; // 30mm in points
-  const padding = 10; // padding between boxes in points
-  const qrPerRow = 4; // fewer per row to accommodate larger box size
-  const rows = Math.ceil(data.length / qrPerRow);
+  // Import required libraries dynamically to avoid hydration issues
+  const { jsPDF } = await import('jspdf');
   
-  const pageWidth = (boxWidth + padding) * qrPerRow + padding;
-  const pageHeight = (boxHeight + padding) * rows + padding;
-  
-  let pdfContent = `%PDF-1.7
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page
-   /Parent 2 0 R
-   /MediaBox [0 0 ${pageWidth} ${pageHeight}]
-   /Contents 4 0 R
-   /Resources << 
-      /Font << /F1 5 0 R /F2 6 0 R >> 
-      /XObject << `;
-  
-  const qrCodePromises = data.map((row, index) => {
-    const qrText = row['QR Code Text'] || row.qrCodeText || row['Unit Serial Number'] || row.serialNumber || '';
-    return generateQRCodeDataURI(qrText);
+  // Create a new PDF document (A4 size)
+  const pdf = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
   });
   
-  const qrCodeDataURIs = await Promise.all(qrCodePromises);
+  // A4 dimensions in mm
+  const pageWidth = 210;
+  const pageHeight = 297;
   
-  qrCodeDataURIs.forEach((_, index) => {
-    pdfContent += `/Im${index + 1} 8 0 R `;
-  });
+  // Box dimensions for a 5x5 grid on A4
+  const boxesPerRow = 5;
+  const boxesPerColumn = 5;
+  const boxWidth = (pageWidth - 20) / boxesPerRow;  // 10mm margin on each side
+  const boxHeight = (pageHeight - 20) / boxesPerColumn; // 10mm margin on top and bottom
   
-  pdfContent += `>>
-   >>
->>
-endobj
-4 0 obj
-<< /Length 7 0 R >>
-stream
-BT
-/F1 12 Tf
-10 ${pageHeight - 20} Td
-(QR Code Layout - Generated for Adobe Illustrator) Tj
-ET
-`;
-
-  data.forEach((row, index) => {
-    const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
-    
-    const col = index % qrPerRow;
-    const rowNum = Math.floor(index / qrPerRow);
-    
-    const x = padding + col * (boxWidth + padding);
-    const y = pageHeight - (padding + (rowNum + 1) * (boxHeight + padding));
-    
-    const qrSize = boxHeight * 0.8;
-    const qrX = x + boxWidth - qrSize - 5; // 5 points from right edge
-    const textX = x + (boxWidth - qrSize) / 4;
-    const textY = y + (boxHeight / 2);
-    
-    pdfContent += `
-% Box ${index + 1}
-0.8 0.8 0.8 RG
-0.5 w
-${x} ${y} ${boxWidth} ${boxHeight} re
-S
-
-q
-${qrSize} 0 0 ${qrSize} ${qrX} ${y + (boxHeight - qrSize) / 2} cm
-/Im${index + 1} Do
-Q
-
-0 0 0 rg
-BT
-/F2 10 Tf
-${textX} ${textY} Td
-(${serial}) Tj
-ET
-
-1 0 0 rg
-BT
-/F1 8 Tf
-${x + 5} ${y + boxHeight - 10} Td
-(${index + 1}.) Tj
-ET
-`;
-  });
+  // Add title
+  pdf.setFontSize(16);
+  pdf.text('QR Code Layout', pageWidth / 2, 10, { align: 'center' });
   
-  pdfContent += `
-endstream
-endobj
-7 0 obj
-${pdfContent.split('stream')[1].split('endstream')[0].length}
-endobj
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-6 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
-endobj`;
-
-  let lastObjNum = 8;
-  qrCodeDataURIs.forEach((dataURI, index) => {
-    pdfContent += `
-${lastObjNum + index} 0 obj
-<< /Type /XObject
-   /Subtype /Image
-   /Width 200
-   /Height 200
-   /ColorSpace /DeviceRGB
-   /BitsPerComponent 8
-   /Filter /DCTDecode
-   /Length ${dataURI.length}
->>
-stream
-${dataURI}
-endstream
-endobj
-`;
-  });
-
-  const totalObjs = 8 + qrCodeDataURIs.length;
+  // Generate QR codes and add to PDF
+  const promises = [];
   
-  pdfContent += `
-xref
-0 ${totalObjs}
-0000000000 65535 f
-`;
-
-  let offset = 9;
-  for (let i = 1; i < totalObjs; i++) {
-    pdfContent += `${offset.toString().padStart(10, '0')} 00000 n\n`;
-    offset += 100; // This is just a placeholder, real offsets would be calculated
+  for (let i = 0; i < Math.min(data.length, 25); i++) {
+    const row = data[i];
+    const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${i}`;
+    const qrText = row['QR Code Text'] || row.qrCodeText || serial;
+    
+    const promise = generateQRCodeDataURI(qrText).then(dataUrl => {
+      // Calculate position in the grid
+      const col = i % boxesPerRow;
+      const rowNum = Math.floor(i / boxesPerRow);
+      
+      // Calculate X and Y position for this box
+      const x = 10 + (col * boxWidth);
+      const y = 15 + (rowNum * boxHeight);
+      
+      // Draw box border
+      pdf.setDrawColor(200, 200, 200);
+      pdf.setLineWidth(0.2);
+      pdf.rect(x, y, boxWidth, boxHeight);
+      
+      // Add box number in red in the top-left corner
+      pdf.setTextColor(255, 0, 0);
+      pdf.setFontSize(8);
+      pdf.text(`${i + 1}.`, x + 2, y + 5);
+      
+      // Add serial number
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(8);
+      const wrappedSerial = pdf.splitTextToSize(serial, boxWidth/2 - 4);
+      pdf.text(wrappedSerial, x + boxWidth/4, y + boxHeight/2);
+      
+      // Add QR code if we have a data URL
+      if (dataUrl) {
+        const qrSize = boxHeight * 0.7;
+        pdf.addImage(dataUrl, 'PNG', x + boxWidth - qrSize - 5, y + (boxHeight - qrSize) / 2, qrSize, qrSize);
+      }
+    });
+    
+    promises.push(promise);
   }
-
-  pdfContent += `
-trailer
-<< /Size ${totalObjs} /Root 1 0 R >>
-startxref
-${offset}
-%%EOF`;
-
-  return pdfContent;
+  
+  // Wait for all QR codes to be added
+  await Promise.all(promises);
+  
+  // Add page number and generation date at the bottom
+  pdf.setFontSize(8);
+  pdf.setTextColor(100, 100, 100);
+  pdf.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 10, pageHeight - 5, { align: 'right' });
+  
+  return pdf.output('blob');
 };
 
 // Generate Illustrator file in requested format
@@ -400,21 +326,23 @@ export const generateIllustratorFile = async (data: ExcelRow[], format: 'svg' | 
   
   if (!folder) throw new Error("Failed to create zip folder");
   
+  // Generate individual QR code files
   data.forEach((row, index) => {
     const qrText = row['QR Code Text'] || row.qrCodeText || '';
     const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
     
-    if (qrText) {
+    if (qrText || serial) {
       if (format === 'svg') {
-        const svg = generateQRCodeSVG(qrText, index + 1);
+        const svg = generateQRCodeSVG(qrText || serial, index + 1);
         folder.file(`QR_${serial}.svg`, svg);
       } else if (format === 'eps') {
-        const eps = generateQRCodeEPS(qrText, index + 1);
+        const eps = generateQRCodeEPS(qrText || serial, index + 1);
         folder.file(`QR_${serial}.eps`, eps);
       }
     }
   });
   
+  // Generate the layout file
   if (format === 'svg') {
     const layoutSvg = generateIllustratorLayout(data);
     folder.file("complete_layout.svg", layoutSvg);
@@ -422,8 +350,8 @@ export const generateIllustratorFile = async (data: ExcelRow[], format: 'svg' | 
     const layoutEps = generateEPSLayout(data);
     folder.file("complete_layout.eps", layoutEps);
   } else if (format === 'pdf') {
-    const pdfContent = await generatePDF(data);
-    folder.file("complete_layout.pdf", pdfContent);
+    // For PDF, we'll generate it directly rather than adding to ZIP
+    return await generatePDF(data);
   }
   
   return zip.generateAsync({ type: "blob" });
@@ -432,8 +360,15 @@ export const generateIllustratorFile = async (data: ExcelRow[], format: 'svg' | 
 export const downloadIllustratorFiles = async (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf' = 'svg'): Promise<void> => {
   try {
     const blob = await generateIllustratorFile(data, format);
-    const extension = format === 'svg' ? 'svg' : format === 'eps' ? 'eps' : 'pdf';
-    saveAs(blob, `qr_codes_for_illustrator_${extension}.zip`);
+    
+    if (format === 'pdf') {
+      // For PDF, save the blob directly
+      saveAs(blob, `qr_codes_layout.pdf`);
+    } else {
+      // For other formats, save as ZIP with all files
+      const extension = format === 'svg' ? 'svg' : 'eps';
+      saveAs(blob, `qr_codes_for_illustrator_${extension}.zip`);
+    }
   } catch (error) {
     console.error(`Failed to generate ${format.toUpperCase()} files:`, error);
     throw error;

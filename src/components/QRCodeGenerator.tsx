@@ -17,7 +17,7 @@ interface QRCodeGeneratorProps {
 const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [fileFormat, setFileFormat] = useState<'svg' | 'eps' | 'pdf'>('svg');
+  const [fileFormat, setFileFormat] = useState<'svg' | 'eps' | 'pdf'>('pdf'); // Default to PDF format
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -61,27 +61,27 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
           
           {showPreview && data.length > 0 && (
             <div className="overflow-auto max-h-[400px] border rounded p-4 w-full">
-              <div className="grid grid-cols-4 gap-2">
-                {data.slice(0, 24).map((row, index) => {
+              <div className="grid grid-cols-5 gap-2">
+                {data.slice(0, 25).map((row, index) => {
                   const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
                   const qrText = row['QR Code Text'] || row.qrCodeText || serial;
                   
                   return (
-                    <div key={index} className="border p-2 flex flex-row justify-between items-center" style={{ width: '200px', height: '80px' }}>
+                    <div key={index} className="border p-2 flex flex-row justify-between items-center" style={{ width: '120px', height: '80px' }}>
                       <div className="flex flex-col items-center justify-center w-1/2">
                         <div className="text-red-500 text-xs text-left w-full">{index + 1}.</div>
                         <div className="text-xs font-bold my-1 text-center">{serial}</div>
                       </div>
                       <div className="flex justify-center items-center w-1/2">
-                        <QRCodeSVG value={qrText} size={50} />
+                        <QRCodeSVG value={qrText} size={40} />
                       </div>
                     </div>
                   );
                 })}
               </div>
-              {data.length > 24 && (
+              {data.length > 25 && (
                 <div className="text-center mt-2 text-sm text-gray-500">
-                  Preview showing first 24 items (of {data.length} total)
+                  Preview showing first 25 items (of {data.length} total). Full PDF will include all items across multiple pages.
                 </div>
               )}
             </div>
@@ -124,10 +124,10 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
               )}
               {fileFormat === 'pdf' && (
                 <>
-                  <li>PDF file with 50mm × 30mm boxes</li>
-                  <li>QR codes positioned on the right side</li>
-                  <li>Serial numbers centered on the left side</li>
-                  <li>Complete layout in a single PDF file</li>
+                  <li>A4 PDF page with 5×5 grid (25 QR codes per page)</li>
+                  <li>Each box includes sequential numbering</li>
+                  <li>Serial number displayed next to each QR code</li>
+                  <li>Multiple pages for more than 25 QR codes</li>
                 </>
               )}
               {fileFormat === 'svg' && (
@@ -141,12 +141,16 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
           </div>
           
           <p className="text-sm text-gray-500 mt-2">
-            You will receive a ZIP file containing:
+            {fileFormat === 'pdf' ? 
+              'You will receive a single PDF file with all QR codes in a 5×5 grid layout.' : 
+              'You will receive a ZIP file containing:'}
           </p>
-          <ul className="list-disc list-inside text-sm text-gray-500 ml-4">
-            <li>Individual QR code {fileFormat.toUpperCase()} files for each row</li>
-            <li>A complete layout in {fileFormat.toUpperCase()} format with all QR codes arranged</li>
-          </ul>
+          {fileFormat !== 'pdf' && (
+            <ul className="list-disc list-inside text-sm text-gray-500 ml-4">
+              <li>Individual QR code {fileFormat.toUpperCase()} files for each row</li>
+              <li>A complete layout in {fileFormat.toUpperCase()} format with all QR codes arranged</li>
+            </ul>
+          )}
         </div>
       </CardContent>
       <CardFooter>
