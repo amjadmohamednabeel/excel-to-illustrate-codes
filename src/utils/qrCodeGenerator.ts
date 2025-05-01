@@ -1,3 +1,4 @@
+
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
@@ -239,7 +240,7 @@ export const generateQRCodeDataURI = async (text: string): Promise<string> => {
   }
 };
 
-// Generate PDF version with improved layout for A4 with 25 boxes
+// Generate PDF version with improved layout for A4 with 25 boxes per page
 export const generatePDF = async (data: ExcelRow[]) => {
   // Import required libraries dynamically to avoid hydration issues
   const { jsPDF } = await import('jspdf');
@@ -258,63 +259,94 @@ export const generatePDF = async (data: ExcelRow[]) => {
   // Box dimensions for a 5x5 grid on A4
   const boxesPerRow = 5;
   const boxesPerColumn = 5;
+  const boxesPerPage = boxesPerRow * boxesPerColumn;
   const boxWidth = (pageWidth - 20) / boxesPerRow;  // 10mm margin on each side
-  const boxHeight = (pageHeight - 20) / boxesPerColumn; // 10mm margin on top and bottom
+  const boxHeight = (pageHeight - 30) / boxesPerColumn; // 15mm margin on top and bottom
   
-  // Add title
-  pdf.setFontSize(16);
-  pdf.text('QR Code Layout', pageWidth / 2, 10, { align: 'center' });
+  // Calculate number of pages needed
+  const numPages = Math.ceil(data.length / boxesPerPage);
   
-  // Generate QR codes and add to PDF
-  const promises = [];
-  
-  for (let i = 0; i < Math.min(data.length, 25); i++) {
-    const row = data[i];
-    const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${i}`;
-    const qrText = row['QR Code Text'] || row.qrCodeText || serial;
+  // Generate QR codes and add to PDF page by page
+  for (let pageNum = 0; pageNum < numPages; pageNum++) {
+    // Add a new page after the first page
+    if (pageNum > 0) {
+      pdf.addPage();
+    }
     
-    const promise = generateQRCodeDataURI(qrText).then(dataUrl => {
-      // Calculate position in the grid
-      const col = i % boxesPerRow;
-      const rowNum = Math.floor(i / boxesPerRow);
-      
-      // Calculate X and Y position for this box
-      const x = 10 + (col * boxWidth);
-      const y = 15 + (rowNum * boxHeight);
-      
-      // Draw box border
-      pdf.setDrawColor(200, 200, 200);
-      pdf.setLineWidth(0.2);
-      pdf.rect(x, y, boxWidth, boxHeight);
-      
-      // Add box number in red in the top-left corner
-      pdf.setTextColor(255, 0, 0);
-      pdf.setFontSize(8);
-      pdf.text(`${i + 1}.`, x + 2, y + 5);
-      
-      // Add serial number
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFontSize(8);
-      const wrappedSerial = pdf.splitTextToSize(serial, boxWidth/2 - 4);
-      pdf.text(wrappedSerial, x + boxWidth/4, y + boxHeight/2);
-      
-      // Add QR code if we have a data URL
-      if (dataUrl) {
-        const qrSize = boxHeight * 0.7;
-        pdf.addImage(dataUrl, 'PNG', x + boxWidth - qrSize - 5, y + (boxHeight - qrSize) / 2, qrSize, qrSize);
-      }
-    });
+    // Calculate the starting and ending indices for this page
+    const startIndex = pageNum * boxesPerPage;
+    const endIndex = Math.min(startIndex + boxesPerPage, data.length);
     
-    promises.push(promise);
+    // Process items for current page
+    const promises = [];
+    
+    for (let i = startIndex; i < endIndex; i++) {
+      const row = data[i];
+      const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${i}`;
+      const qrText = row['QR Code Text'] || row.qrCodeText || serial;
+      
+      const promise = generateQRCodeDataURI(qrText).then(dataUrl => {
+        // Calculate position in the grid
+        const localIndex = i - startIndex; // Index relative to current page
+        const col = localIndex % boxesPerRow;
+        const rowNum = Math.floor(localIndex / boxesPerRow);
+        
+        // Calculate X and Y position for this box
+        const x = 10 + (col * boxWidth);
+        const y = 15 + (rowNum * boxHeight);
+        
+        // Draw box border
+        pdf.setDrawColor(200, 0, 0); // Red border for boxes
+        pdf.setLineWidth(0.2);
+        pdf.rect(x, y, boxWidth, boxHeight);
+        
+        // Add box number in red in the left
+        pdf.setTextColor(255, 0, 0);
+        pdf.setFontSize(10);
+        pdf.text(`${i + 1}.`, x + 2, y + 10);
+        
+        // Add serial number in black
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(serial, x + 12, y + 10);
+        
+        // Calculate QR code size and position (right side of box)
+        const qrSize = Math.min(boxHeight - 10, boxWidth / 2.5);
+        const qrX = x + boxWidth - qrSize - 5;
+        const qrY = y + (boxHeight - qrSize) / 2;
+        
+        // Add QR code if we have a data URL
+        if (dataUrl) {
+          pdf.addImage(dataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+        }
+      });
+      
+      promises.push(promise);
+    }
+    
+    await Promise.all(promises);
   }
   
-  // Wait for all QR codes to be added
-  await Promise.all(promises);
-  
-  // Add page number and generation date at the bottom
-  pdf.setFontSize(8);
-  pdf.setTextColor(100, 100, 100);
-  pdf.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 10, pageHeight - 5, { align: 'right' });
+  // Add page number and generation date at the bottom of each page
+  for (let i = 0; i < numPages; i++) {
+    pdf.setPage(i + 1);
+    
+    // Add footer with information based on image reference
+    pdf.setFontSize(12);
+    pdf.setTextColor(255, 0, 0);
+    pdf.text(`Qty. - ${data.length} each`, 20, pageHeight - 10);
+    
+    pdf.setTextColor(0, 150, 50); // Green color
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Serial Number+QR code", pageWidth - 60, pageHeight - 15);
+    pdf.text("Sticker Size - 50 x 30mm", pageWidth - 60, pageHeight - 10);
+    
+    // Optional: Add page number
+    pdf.setFontSize(8);
+    pdf.setTextColor(100, 100, 100);
+    pdf.text(`Page ${i + 1} of ${numPages}`, pageWidth - 20, 10, { align: 'right' });
+  }
   
   return pdf.output('blob');
 };

@@ -18,6 +18,10 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [fileFormat, setFileFormat] = useState<'svg' | 'eps' | 'pdf'>('pdf'); // Default to PDF format
+  const [previewPage, setPreviewPage] = useState(0);
+  
+  const itemsPerPage = 25;
+  const totalPages = Math.ceil(data.length / itemsPerPage);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -42,6 +46,26 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const togglePreview = () => {
     setShowPreview(!showPreview);
   };
+  
+  // Navigate preview pages
+  const nextPage = () => {
+    if (previewPage < totalPages - 1) {
+      setPreviewPage(previewPage + 1);
+    }
+  };
+  
+  const prevPage = () => {
+    if (previewPage > 0) {
+      setPreviewPage(previewPage - 1);
+    }
+  };
+  
+  // Get items for current preview page
+  const getCurrentPageItems = () => {
+    const start = previewPage * itemsPerPage;
+    const end = start + itemsPerPage;
+    return data.slice(start, end);
+  };
 
   return (
     <Card className="w-full">
@@ -60,30 +84,61 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
           </Button>
           
           {showPreview && data.length > 0 && (
-            <div className="overflow-auto max-h-[400px] border rounded p-4 w-full">
-              <div className="grid grid-cols-5 gap-2">
-                {data.slice(0, 25).map((row, index) => {
-                  const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
-                  const qrText = row['QR Code Text'] || row.qrCodeText || serial;
-                  
-                  return (
-                    <div key={index} className="border p-2 flex flex-row justify-between items-center" style={{ width: '120px', height: '80px' }}>
-                      <div className="flex flex-col items-center justify-center w-1/2">
-                        <div className="text-red-500 text-xs text-left w-full">{index + 1}.</div>
-                        <div className="text-xs font-bold my-1 text-center">{serial}</div>
-                      </div>
-                      <div className="flex justify-center items-center w-1/2">
-                        <QRCodeSVG value={qrText} size={40} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {data.length > 25 && (
-                <div className="text-center mt-2 text-sm text-gray-500">
-                  Preview showing first 25 items (of {data.length} total). Full PDF will include all items across multiple pages.
+            <div className="w-full space-y-2">
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mb-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={prevPage} 
+                    disabled={previewPage === 0}
+                  >
+                    Previous Page
+                  </Button>
+                  <span className="text-sm">
+                    Page {previewPage + 1} of {totalPages}
+                  </span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={nextPage} 
+                    disabled={previewPage === totalPages - 1}
+                  >
+                    Next Page
+                  </Button>
                 </div>
               )}
+              
+              <div className="overflow-auto max-h-[400px] border rounded p-4 w-full">
+                <div className="grid grid-cols-5 gap-2">
+                  {getCurrentPageItems().map((row, index) => {
+                    const actualIndex = previewPage * itemsPerPage + index;
+                    const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${actualIndex}`;
+                    const qrText = row['QR Code Text'] || row.qrCodeText || serial;
+                    
+                    return (
+                      <div key={index} className="border p-2 flex flex-row justify-between items-center" style={{ width: '120px', height: '80px' }}>
+                        <div className="flex flex-col items-start justify-center w-1/2">
+                          <div className="text-red-500 text-xs text-left w-full font-bold">{actualIndex + 1}.</div>
+                          <div className="text-xs font-bold mt-1 text-left">{serial}</div>
+                        </div>
+                        <div className="flex justify-center items-center w-1/2">
+                          <QRCodeSVG value={qrText} size={40} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <div className="text-center mt-2 text-sm text-gray-500">
+                  {data.length > itemsPerPage && (
+                    <p>
+                      Showing page {previewPage + 1} of {totalPages}. 
+                      {totalPages > 1 && ` Full PDF will include ${data.length} items across ${totalPages} pages.`}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -124,10 +179,11 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
               )}
               {fileFormat === 'pdf' && (
                 <>
-                  <li>A4 PDF page with 5×5 grid (25 QR codes per page)</li>
-                  <li>Each box includes sequential numbering</li>
-                  <li>Serial number displayed next to each QR code</li>
+                  <li>A4 PDF with 5×5 grid (25 QR codes per page)</li>
                   <li>Multiple pages for more than 25 QR codes</li>
+                  <li>Each box includes sequential numbering in red</li>
+                  <li>Serial numbers displayed next to each QR code</li>
+                  <li>50mm × 30mm sticker size as shown in reference</li>
                 </>
               )}
               {fileFormat === 'svg' && (
@@ -142,7 +198,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
           
           <p className="text-sm text-gray-500 mt-2">
             {fileFormat === 'pdf' ? 
-              'You will receive a single PDF file with all QR codes in a 5×5 grid layout.' : 
+              `You will receive a single PDF file with all ${data.length} QR codes in a 5×5 grid layout${data.length > 25 ? ` across ${totalPages} pages` : ''}.` : 
               'You will receive a ZIP file containing:'}
           </p>
           {fileFormat !== 'pdf' && (
