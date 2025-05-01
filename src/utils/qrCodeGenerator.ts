@@ -1,10 +1,11 @@
+
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
 import * as QRCode from 'qrcode';
 
 // Define a type for custom page size
-export type PageSize = 'a4' | 'a3' | 'letter' | { width: number; height: number };
+export type PageSize = 'a4' | 'a3' | 'letter' | 'custom' | { width: number; height: number };
 
 // Define options for QR code generation
 export interface GenerationOptions {
@@ -17,6 +18,7 @@ export interface GenerationOptions {
   fontFamily: string; // font family to use
   boxesPerRow?: number; // optional manual override for boxes per row
   boxesPerColumn?: number; // optional manual override for boxes per column
+  countOutsideBox?: boolean; // whether to place count number outside the box
 }
 
 // Default options
@@ -28,13 +30,14 @@ const defaultOptions: GenerationOptions = {
   fontSize: 9, // 9pt font size
   pageSize: 'a4', // A4 page size
   fontFamily: 'helvetica-bold', // Helvetica Bold font
+  countOutsideBox: false, // Default count inside box
 };
 
 // Gets page dimensions in mm based on the page size
 const getPageDimensions = (pageSize: PageSize, orientation: 'portrait' | 'landscape'): { width: number; height: number } => {
   let width: number, height: number;
   
-  if (typeof pageSize === 'object') {
+  if (typeof pageSize === 'object' && 'width' in pageSize) {
     width = pageSize.width;
     height = pageSize.height;
   } else {
@@ -44,6 +47,10 @@ const getPageDimensions = (pageSize: PageSize, orientation: 'portrait' | 'landsc
         break;
       case 'letter':
         width = 215.9; height = 279.4;
+        break;
+      case 'custom':
+        // This should be handled by the caller using the object version
+        width = 210; height = 297;
         break;
       case 'a4':
       default:
@@ -157,6 +164,7 @@ export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<Gen
   data.forEach((row, index) => {
     const qrText = row['QR Code Text'] || row.qrCodeText || '';
     const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
+    const count = row['Count'] || row.count || '1';
     
     const col = index % boxesPerRow;
     const rowNum = Math.floor(index / boxesPerRow);
@@ -167,9 +175,14 @@ export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<Gen
     svgContent += `
       <g transform="translate(${x}, ${y})">
         <rect width="${opts.boxWidth}" height="${opts.boxHeight}" fill="white" stroke="lightgray" stroke-width="1" />
-        <text x="10" y="20" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="${opts.fontSize * 1.3}" fill="red">
-          ${index + 1}.
-        </text>
+        ${opts.countOutsideBox 
+          ? `<text x="${-5}" y="${opts.boxHeight / 2}" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="${opts.fontSize * 1.3}" fill="red" text-anchor="end">
+              ${count}
+             </text>`
+          : `<text x="10" y="20" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="${opts.fontSize * 1.3}" fill="red">
+              ${index + 1}.
+             </text>`
+        }
         <text x="${opts.boxWidth / 4}" y="${opts.boxHeight/2 + 5}" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="${opts.fontSize}" font-weight="bold" text-anchor="middle">
           ${serial}
         </text>
@@ -366,7 +379,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   const pdf = new jsPDF({
     orientation: opts.orientation,
     unit: 'mm',
-    format: typeof opts.pageSize === 'object' ? [opts.pageSize.width, opts.pageSize.height] : opts.pageSize
+    format: typeof opts.pageSize === 'object' && 'width' in opts.pageSize ? [opts.pageSize.width, opts.pageSize.height] : opts.pageSize
   });
   
   // Calculate layout
@@ -407,6 +420,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
       const row = data[i];
       const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${i}`;
       const qrText = row['QR Code Text'] || row.qrCodeText || serial;
+      const count = row['Count'] || row.count || '1';
       
       const promise = generateQRCodeDataURI(qrText).then(dataUrl => {
         // Calculate position in the grid
@@ -423,10 +437,16 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
         pdf.setLineWidth(0.1);
         pdf.rect(x, y, opts.boxWidth, opts.boxHeight);
         
-        // Add box number in red in the top-left
+        // Add count number in red, either inside or outside the box
         pdf.setTextColor(255, 0, 0);
         pdf.setFontSize(8);
-        pdf.text(`${i + 1}.`, x + 2, y + 5);
+        if (opts.countOutsideBox) {
+          // Place count number outside the box, to the left
+          pdf.text(`${count}`, x - 5, y + opts.boxHeight / 2, { align: 'right' });
+        } else {
+          // Place count inside the box, top-left
+          pdf.text(`${i + 1}.`, x + 2, y + 5);
+        }
         
         // Add serial number in black on the left side, center aligned
         pdf.setTextColor(0, 0, 0);
