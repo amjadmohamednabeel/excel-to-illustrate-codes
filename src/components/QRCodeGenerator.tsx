@@ -118,9 +118,9 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     
                     return (
                       <div key={index} className="border p-2 flex flex-row justify-between items-center" style={{ width: '120px', height: '80px' }}>
-                        <div className="flex flex-col items-start justify-center w-1/2">
+                        <div className="flex flex-col items-center justify-center w-1/2">
                           <div className="text-red-500 text-xs text-left w-full font-bold">{actualIndex + 1}.</div>
-                          <div className="text-xs font-bold mt-1 text-left">{serial}</div>
+                          <div className="text-xs font-bold mt-1 text-center">{serial}</div>
                         </div>
                         <div className="flex justify-center items-center w-1/2">
                           <QRCodeSVG value={qrText} size={40} />

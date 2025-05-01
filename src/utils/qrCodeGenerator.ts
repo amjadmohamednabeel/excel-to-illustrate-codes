@@ -1,4 +1,3 @@
-
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
@@ -256,12 +255,18 @@ export const generatePDF = async (data: ExcelRow[]) => {
   const pageWidth = 210;
   const pageHeight = 297;
   
-  // Box dimensions for a 5x5 grid on A4
-  const boxesPerRow = 5;
-  const boxesPerColumn = 5;
+  // Box dimensions exactly 50x30mm as requested
+  const boxWidth = 50;  
+  const boxHeight = 30; 
+  
+  // Boxes per row and column to fit on A4 page
+  const boxesPerRow = Math.floor((pageWidth - 20) / boxWidth); // 5 boxes with margins
+  const boxesPerColumn = Math.floor((pageHeight - 30) / boxHeight); // 5 boxes with margins
   const boxesPerPage = boxesPerRow * boxesPerColumn;
-  const boxWidth = (pageWidth - 20) / boxesPerRow;  // 10mm margin on each side
-  const boxHeight = (pageHeight - 30) / boxesPerColumn; // 15mm margin on top and bottom
+  
+  // Horizontal and vertical margins to center the grid on the page
+  const horizontalMargin = (pageWidth - (boxesPerRow * boxWidth)) / 2;
+  const verticalMargin = (pageHeight - (boxesPerColumn * boxHeight)) / 2;
   
   // Calculate number of pages needed
   const numPages = Math.ceil(data.length / boxesPerPage);
@@ -292,29 +297,36 @@ export const generatePDF = async (data: ExcelRow[]) => {
         const rowNum = Math.floor(localIndex / boxesPerRow);
         
         // Calculate X and Y position for this box
-        const x = 10 + (col * boxWidth);
-        const y = 15 + (rowNum * boxHeight);
+        const x = horizontalMargin + (col * boxWidth);
+        const y = verticalMargin + (rowNum * boxHeight);
         
         // Draw box border
-        pdf.setDrawColor(200, 0, 0); // Red border for boxes
-        pdf.setLineWidth(0.2);
+        pdf.setDrawColor(200, 200, 200); // Light gray border for boxes
+        pdf.setLineWidth(0.1);
         pdf.rect(x, y, boxWidth, boxHeight);
         
-        // Add box number in red in the left
+        // Add box number in red in the top-left
         pdf.setTextColor(255, 0, 0);
-        pdf.setFontSize(10);
-        pdf.text(`${i + 1}.`, x + 2, y + 10);
+        pdf.setFontSize(8);
+        pdf.text(`${i + 1}.`, x + 2, y + 5);
         
-        // Add serial number in black
+        // Add serial number in black on the left side, center aligned
         pdf.setTextColor(0, 0, 0);
-        pdf.setFontSize(10);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(serial, x + 12, y + 10);
+        pdf.setFontSize(9);
+        pdf.setFont("helvetica", "bold"); // Using helvetica bold as fallback for denso
         
-        // Calculate QR code size and position (right side of box)
-        const qrSize = Math.min(boxHeight - 10, boxWidth / 2.5);
-        const qrX = x + boxWidth - qrSize - 5;
-        const qrY = y + (boxHeight - qrSize) / 2;
+        // Center the serial text vertically and horizontally in the left half of the box
+        const textWidth = pdf.getStringUnitWidth(serial) * pdf.getFontSize() / pdf.internal.scaleFactor;
+        const leftHalfCenter = x + (boxWidth * 0.25); // Center of the left half
+        const textX = leftHalfCenter - (textWidth / 2);
+        const textY = y + (boxHeight / 2) + 3; // Centered vertically with slight adjustment
+        
+        pdf.text(serial, textX, textY);
+        
+        // Calculate QR code size and position (right side of box, centered)
+        const qrSize = boxHeight * 0.8; // QR code is 80% of box height
+        const qrX = x + (boxWidth * 0.6); // Positioned in the right half
+        const qrY = y + (boxHeight - qrSize) / 2; // Centered vertically
         
         // Add QR code if we have a data URL
         if (dataUrl) {
@@ -349,44 +361,6 @@ export const generatePDF = async (data: ExcelRow[]) => {
   }
   
   return pdf.output('blob');
-};
-
-// Generate Illustrator file in requested format
-export const generateIllustratorFile = async (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf' = 'svg'): Promise<Blob> => {
-  const zip = new JSZip();
-  const folder = zip.folder("qr_codes");
-  
-  if (!folder) throw new Error("Failed to create zip folder");
-  
-  // Generate individual QR code files
-  data.forEach((row, index) => {
-    const qrText = row['QR Code Text'] || row.qrCodeText || '';
-    const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
-    
-    if (qrText || serial) {
-      if (format === 'svg') {
-        const svg = generateQRCodeSVG(qrText || serial, index + 1);
-        folder.file(`QR_${serial}.svg`, svg);
-      } else if (format === 'eps') {
-        const eps = generateQRCodeEPS(qrText || serial, index + 1);
-        folder.file(`QR_${serial}.eps`, eps);
-      }
-    }
-  });
-  
-  // Generate the layout file
-  if (format === 'svg') {
-    const layoutSvg = generateIllustratorLayout(data);
-    folder.file("complete_layout.svg", layoutSvg);
-  } else if (format === 'eps') {
-    const layoutEps = generateEPSLayout(data);
-    folder.file("complete_layout.eps", layoutEps);
-  } else if (format === 'pdf') {
-    // For PDF, we'll generate it directly rather than adding to ZIP
-    return await generatePDF(data);
-  }
-  
-  return zip.generateAsync({ type: "blob" });
 };
 
 export const downloadIllustratorFiles = async (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf' = 'svg'): Promise<void> => {
