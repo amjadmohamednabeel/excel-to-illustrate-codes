@@ -301,6 +301,15 @@ export const generateEPSLayout = (data: ExcelRow[], options: Partial<GenerationO
       boldFontName = 'Helvetica-Bold';
   }
   
+  // Convert hex colors to RGB for EPS
+  const boxBorderColorRGB = hexToRGB(opts.boxBorderColor || defaultOptions.boxBorderColor!);
+  const countColorRGB = hexToRGB(opts.countColor || defaultOptions.countColor!);
+  const serialColorRGB = hexToRGB(opts.serialColor || defaultOptions.serialColor!);
+  const qrColorRGB = hexToRGB(opts.qrCodeColor || defaultOptions.qrCodeColor!);
+  const qrBgColorRGB = hexToRGB(opts.qrCodeBgColor || defaultOptions.qrCodeBgColor!);
+  const footerQtyColorRGB = hexToRGB(opts.footerQtyColor || defaultOptions.footerQtyColor!);
+  const footerInfoColorRGB = hexToRGB(opts.footerInfoColor || defaultOptions.footerInfoColor!);
+  
   let epsContent = `%!PS-Adobe-3.0 EPSF-3.0
 %%BoundingBox: 0 0 ${pageWidth} ${pageHeight}
 %%Creator: QR Code Generator Layout
@@ -354,7 +363,8 @@ GS
   1.0 1.0 1.0 setrgbcolor
   ${x} ${y} ${boxWidth} ${boxHeight} RF
   
-  1.0 0.0 0.0 setrgbcolor % Red border like in the image
+  % Apply custom border color
+  ${boxBorderColorRGB} setrgbcolor
   0.3 setlinewidth
   ${x} ${y} M
   ${boxWidth} 0 RL
@@ -363,18 +373,18 @@ GS
   CP
   S
   
-  % QR code on right side (centered vertically)
-  0.0 0.0 0.0 setrgbcolor
+  % QR code on right side (centered vertically) with custom color
+  ${qrColorRGB} setrgbcolor
   ${qrX} ${y + (boxHeight - qrSize) / 2} ${qrSize} ${qrSize} RF
   
-  % Count number outside the box in red
-  1.0 0.0 0.0 setrgbcolor
+  % Count number outside the box with custom color
+  ${countColorRGB} setrgbcolor
   /${boldFontName} ${opts.fontSize + 2} SF
   ${x - 10} ${y + boxHeight / 2} M
   (${count}.) SH
   
-  % Serial number on left side (centered vertically and horizontally)
-  0.0 0.0 0.0 setrgbcolor
+  % Serial number on left side with custom color
+  ${serialColorRGB} setrgbcolor
   /${boldFontName} ${opts.fontSize + 2} SF
   ${textX} ${y + (boxHeight / 2)} M
   (${serial}) dup stringwidth pop 2 div neg 0 rmoveto SH
@@ -388,13 +398,13 @@ GR
     const qtyText = opts.customQty || `${data.length}`;
     
     epsContent += `
-% Footer information
-1.0 0.0 0.0 setrgbcolor % Red text
+% Footer information with custom colors
+${footerQtyColorRGB} setrgbcolor
 /${boldFontName} ${footerSize} SF
 20 20 M
 (Qty. - ${qtyText} each) SH
 
-0.0 0.7 0.3 setrgbcolor % Green text
+${footerInfoColorRGB} setrgbcolor
 /${boldFontName} ${footerSize} SF
 ${pageWidth - 20} 40 M
 (Serial Number+QR code) dup stringwidth pop neg 0 rmoveto SH
@@ -511,6 +521,8 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   const boxBorderColorRGB = hexToRGBArray(opts.boxBorderColor || defaultOptions.boxBorderColor!);
   const countColorRGB = hexToRGBArray(opts.countColor || defaultOptions.countColor!);
   const serialColorRGB = hexToRGBArray(opts.serialColor || defaultOptions.serialColor!);
+  const qrCodeColorRGB = hexToRGBArray(opts.qrCodeColor || defaultOptions.qrCodeColor!);
+  const qrCodeBgColorRGB = hexToRGBArray(opts.qrCodeBgColor || defaultOptions.qrCodeBgColor!);
   const footerQtyColorRGB = hexToRGBArray(opts.footerQtyColor || defaultOptions.footerQtyColor!);
   const footerInfoColorRGB = hexToRGBArray(opts.footerInfoColor || defaultOptions.footerInfoColor!);
   
