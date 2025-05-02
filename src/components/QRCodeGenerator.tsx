@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,7 +6,7 @@ import { toast } from '@/components/ui/use-toast';
 import { ExcelRow } from '@/utils/excelParser';
 import { downloadIllustratorFiles, GenerationOptions } from '@/utils/qrCodeGenerator';
 import { QRCodeSVG } from 'qrcode.react';
-import { Download, Settings2 } from 'lucide-react';
+import { Download, Settings2, Palette } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -14,6 +15,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface QRCodeGeneratorProps {
   data: ExcelRow[];
@@ -33,12 +35,23 @@ const pageSizes = [
   { value: 'custom', label: 'Custom Size' },
 ];
 
+// Color presets
+const colorPresets = {
+  boxBorder: ['#FF0000', '#000000', '#0000FF', '#00AA50', '#FFA500', '#800080'],
+  countNumber: ['#FF0000', '#000000', '#0000FF', '#FFA500', '#006400', '#800080'],
+  serial: ['#000000', '#0000FF', '#006400', '#800080', '#FFA500', '#FF0000'],
+  qrCode: ['#000000', '#0000FF', '#006400', '#800080', '#FFA500', '#FF0000'],
+  footerQty: ['#FF0000', '#000000', '#0000FF', '#00AA50', '#FFA500', '#800080'],
+  footerInfo: ['#00AA50', '#000000', '#0000FF', '#FF0000', '#FFA500', '#800080'],
+};
+
 const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [fileFormat, setFileFormat] = useState<'svg' | 'eps' | 'pdf'>('pdf');
   const [previewPage, setPreviewPage] = useState(0);
+  const [activeTab, setActiveTab] = useState('layout');
   
   // Layout options
   const [boxWidth, setBoxWidth] = useState(50); // Default box width in mm
@@ -56,10 +69,19 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [boxesPerPage, setBoxesPerPage] = useState<number>(25);
   const [countOutsideBox, setCountOutsideBox] = useState(true); // Default to true as per image
   
-  // Footer options (new)
+  // Footer options
   const [showFooter, setShowFooter] = useState(true); // Whether to show the footer
   const [customQty, setCustomQty] = useState<string>(""); // Custom quantity value
   const [footerFontSize, setFooterFontSize] = useState(12); // Footer font size in pt
+
+  // New color options
+  const [boxBorderColor, setBoxBorderColor] = useState('#FF0000'); // Red box border
+  const [countColor, setCountColor] = useState('#FF0000'); // Red count numbers
+  const [serialColor, setSerialColor] = useState('#000000'); // Black serial numbers
+  const [qrCodeColor, setQrCodeColor] = useState('#000000'); // Black QR code
+  const [qrCodeBgColor, setQrCodeBgColor] = useState('#FFFFFF'); // White QR code background
+  const [footerQtyColor, setFooterQtyColor] = useState('#FF0000'); // Red quantity text in footer
+  const [footerInfoColor, setFooterInfoColor] = useState('#00AA50'); // Green info text in footer
 
   // Calculate boxes per page based on current settings
   React.useEffect(() => {
@@ -123,9 +145,17 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
         boxesPerRow: boxesPerRow || undefined, 
         boxesPerColumn: boxesPerColumn || undefined, 
         countOutsideBox,
-        showFooter, // Add footer visibility option
-        customQty: customQty || undefined, // Add custom quantity value
-        footerFontSize, // Add footer font size
+        showFooter,
+        customQty: customQty || undefined,
+        footerFontSize,
+        // Add color options
+        boxBorderColor,
+        countColor,
+        serialColor,
+        qrCodeColor,
+        qrCodeBgColor,
+        footerQtyColor,
+        footerInfoColor,
       };
       
       await downloadIllustratorFiles(data, fileFormat, options);
@@ -169,7 +199,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     return data.slice(start, end);
   };
 
-  // Reset box layout to default values
+  // Reset all options to default values
   const resetToDefaults = () => {
     setBoxWidth(50);
     setBoxHeight(30);
@@ -183,16 +213,68 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setFontFamily('helvetica-bold');
     setBoxesPerRow(null);
     setBoxesPerColumn(null);
-    setCountOutsideBox(true); // Match the image's layout
-    // Add footer option resets
+    setCountOutsideBox(true);
     setShowFooter(true);
     setCustomQty("");
     setFooterFontSize(12);
+    // Reset color options
+    setBoxBorderColor('#FF0000');
+    setCountColor('#FF0000');
+    setSerialColor('#000000');
+    setQrCodeColor('#000000');
+    setQrCodeBgColor('#FFFFFF');
+    setFooterQtyColor('#FF0000');
+    setFooterInfoColor('#00AA50');
   };
 
   // Get actual quantity to display
   const getDisplayQty = () => {
     return customQty ? customQty : `${data.length}`;
+  };
+
+  // Color picker component
+  const ColorPicker = ({ 
+    label, 
+    value, 
+    onChange, 
+    presets = colorPresets.boxBorder 
+  }: { 
+    label: string, 
+    value: string, 
+    onChange: (color: string) => void, 
+    presets?: string[] 
+  }) => {
+    return (
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <Label>{label}</Label>
+          <div className="flex items-center space-x-2">
+            <div 
+              className="w-6 h-6 border rounded" 
+              style={{ backgroundColor: value }}
+            />
+            <Input 
+              type="color" 
+              value={value} 
+              onChange={(e) => onChange(e.target.value)} 
+              className="w-8 h-8 p-0 border-0 cursor-pointer"
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {presets.map((color, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className={`w-5 h-5 rounded-full border ${value === color ? 'ring-2 ring-offset-1 ring-black' : ''}`}
+              style={{ backgroundColor: color }}
+              onClick={() => onChange(color)}
+              aria-label={`Set color to ${color}`}
+            />
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -264,21 +346,32 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     
                     return (
                       <div key={index} className="relative">
-                        {/* Count number outside the box in red */}
-                        <div className="absolute -left-6 top-1/2 transform -translate-y-1/2 text-red-500 text-xs font-bold">
+                        {/* Count number outside the box using selected color */}
+                        <div className="absolute -left-6 top-1/2 transform -translate-y-1/2 text-xs font-bold" style={{ color: countColor }}>
                           {count}.
                         </div>
                         
-                        {/* Box with thin red border */}
-                        <div className="border border-red-500 p-2 flex flex-row justify-between items-center" style={{ width: '120px', height: '75px' }}>
-                          {/* Serial number centered in left half */}
+                        {/* Box with border in selected color */}
+                        <div className="border p-2 flex flex-row justify-between items-center" style={{ 
+                          width: '120px', 
+                          height: '75px',
+                          borderColor: boxBorderColor
+                        }}>
+                          {/* Serial number centered in left half with selected color */}
                           <div className="flex items-center justify-center w-1/2 h-full">
-                            <div className="text-xs font-bold text-center">{serial}</div>
+                            <div className="text-xs font-bold text-center" style={{ color: serialColor }}>
+                              {serial}
+                            </div>
                           </div>
                           
-                          {/* QR code centered in right half */}
+                          {/* QR code centered in right half with selected colors */}
                           <div className="flex justify-center items-center w-1/2 h-full">
-                            <QRCodeSVG value={qrText} size={40} />
+                            <QRCodeSVG 
+                              value={qrText} 
+                              size={40} 
+                              fgColor={qrCodeColor}
+                              bgColor={qrCodeBgColor}
+                            />
                           </div>
                         </div>
                       </div>
@@ -288,10 +381,16 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                 
                 {showFooter && (
                 <div className="text-center mt-4 text-sm">
-                  <span className="text-red-500 font-bold" style={{fontSize: `${footerFontSize}px`}}>
+                  <span className="font-bold" style={{
+                    fontSize: `${footerFontSize}px`,
+                    color: footerQtyColor
+                  }}>
                     Qty. - {getDisplayQty()} each
                   </span>
-                  <span className="float-right text-green-600 font-bold" style={{fontSize: `${footerFontSize}px`}}>
+                  <span className="float-right font-bold" style={{
+                    fontSize: `${footerFontSize}px`,
+                    color: footerInfoColor
+                  }}>
                     Serial Number+QR code<br />
                     Sticker Size - {boxWidth} x {boxHeight}mm
                   </span>
@@ -306,294 +405,375 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
             className="w-full border rounded-md p-4 mt-4"
           >
             <CollapsibleContent>
-              <div className="space-y-6">
-                {/* Page Settings */}
-                <div className="space-y-3">
-                  <h3 className="text-sm font-medium">Page Settings</h3>
-                  
-                  <div className="grid grid-cols-2 gap-4">
+              <Tabs 
+                defaultValue="layout" 
+                value={activeTab}
+                onValueChange={setActiveTab}
+                className="w-full"
+              >
+                <TabsList className="grid grid-cols-2 mb-4">
+                  <TabsTrigger value="layout">Layout Settings</TabsTrigger>
+                  <TabsTrigger value="colors">
+                    <Palette className="h-4 w-4 mr-2" />
+                    Color Settings
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="layout" className="space-y-6">
+                  {/* Page Settings */}
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium">Page Settings</h3>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Page Size</Label>
+                        <Select value={pageSize} onValueChange={setPageSize}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select page size" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {pageSizes.map((size) => (
+                              <SelectItem key={size.value} value={size.value}>
+                                {size.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Orientation</Label>
+                        <RadioGroup
+                          value={orientation}
+                          onValueChange={(value) => setOrientation(value as 'portrait' | 'landscape')}
+                          className="flex space-x-4"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="portrait" id="portrait" />
+                            <Label htmlFor="portrait">Portrait</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="landscape" id="landscape" />
+                            <Label htmlFor="landscape">Landscape</Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    </div>
+
+                    {pageSize === 'custom' && (
+                      <div className="grid grid-cols-2 gap-4 mt-2">
+                        <div className="space-y-1">
+                          <Label htmlFor="custom-width" className="text-xs">Width (mm)</Label>
+                          <Input
+                            id="custom-width"
+                            type="number"
+                            min="50"
+                            value={customWidth}
+                            onChange={(e) => setCustomWidth(Number(e.target.value))}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="custom-height" className="text-xs">Height (mm)</Label>
+                          <Input
+                            id="custom-height"
+                            type="number"
+                            min="50"
+                            value={customHeight}
+                            onChange={(e) => setCustomHeight(Number(e.target.value))}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Box Settings */}
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium">Box Settings</h3>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label>Box Width: {boxWidth} mm</Label>
+                        </div>
+                        <Slider
+                          value={[boxWidth]}
+                          min={20}
+                          max={100}
+                          step={1}
+                          onValueChange={(value) => setBoxWidth(value[0])}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label>Box Height: {boxHeight} mm</Label>
+                        </div>
+                        <Slider
+                          value={[boxHeight]}
+                          min={15}
+                          max={80}
+                          step={1}
+                          onValueChange={(value) => setBoxHeight(value[0])}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Box Spacing Setting */}
                     <div className="space-y-2">
-                      <Label>Page Size</Label>
-                      <Select value={pageSize} onValueChange={setPageSize}>
+                      <div className="flex justify-between">
+                        <Label>Box Spacing: {boxSpacing} mm</Label>
+                      </div>
+                      <Slider
+                        value={[boxSpacing]}
+                        min={5}
+                        max={30}
+                        step={1}
+                        onValueChange={(value) => setBoxSpacing(value[0])}
+                      />
+                      <p className="text-xs text-gray-500">
+                        Space between boxes in layout
+                      </p>
+                    </div>
+
+                    {/* Count Position Setting */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="count-position" className="font-medium">
+                          Place Count Outside Box
+                        </Label>
+                        <Switch
+                          id="count-position"
+                          checked={countOutsideBox}
+                          onCheckedChange={setCountOutsideBox}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        When enabled, the count number will be placed outside the box on the left (recommended)
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Footer Settings */}
+                  <div className="space-y-3 border-t pt-3">
+                    <h3 className="text-sm font-medium">Footer Settings</h3>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="show-footer"
+                          checked={showFooter}
+                          onCheckedChange={(checked) => setShowFooter(checked as boolean)}
+                        />
+                        <Label htmlFor="show-footer" className="font-medium">
+                          Show Footer Information
+                        </Label>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Enable/disable the footer with quantity and sticker information
+                      </p>
+                    </div>
+                    
+                    {showFooter && (
+                      <>
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                          <div className="space-y-1">
+                            <Label htmlFor="custom-qty" className="text-xs">Custom Quantity Text</Label>
+                            <Input
+                              id="custom-qty"
+                              type="text"
+                              placeholder={`${data.length}`}
+                              value={customQty}
+                              onChange={(e) => setCustomQty(e.target.value)}
+                            />
+                            <p className="text-xs text-gray-500">
+                              Leave blank to use actual count ({data.length})
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <Label>Footer Font Size: {footerFontSize}pt</Label>
+                            </div>
+                            <Slider
+                              value={[footerFontSize]}
+                              min={8}
+                              max={16}
+                              step={1}
+                              onValueChange={(value) => setFooterFontSize(value[0])}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* QR Code Settings */}
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium">QR Code & Font Settings</h3>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label>QR Code Size: {qrCodeSize}%</Label>
+                        </div>
+                        <Slider
+                          value={[qrCodeSize]}
+                          min={20}
+                          max={90}
+                          step={5}
+                          onValueChange={(value) => setQrCodeSize(value[0])}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label>Font Size: {fontSize}pt</Label>
+                        </div>
+                        <Slider
+                          value={[fontSize]}
+                          min={6}
+                          max={14}
+                          step={1}
+                          onValueChange={(value) => setFontSize(value[0])}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Font</Label>
+                      <Select value={fontFamily} onValueChange={setFontFamily}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select page size" />
+                          <SelectValue placeholder="Select font" />
                         </SelectTrigger>
                         <SelectContent>
-                          {pageSizes.map((size) => (
-                            <SelectItem key={size.value} value={size.value}>
-                              {size.label}
+                          {fontOptions.map((font) => (
+                            <SelectItem key={font.value} value={font.value}>
+                              {font.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  
+                  {/* Advanced Layout Settings */}
+                  <div className="space-y-3 border-t pt-3">
+                    <h3 className="text-sm font-medium">Advanced Layout (Optional)</h3>
+                    <p className="text-xs text-gray-500">Manually specify boxes per row/column or leave empty for auto-calculation</p>
                     
-                    <div className="space-y-2">
-                      <Label>Orientation</Label>
-                      <RadioGroup
-                        value={orientation}
-                        onValueChange={(value) => setOrientation(value as 'portrait' | 'landscape')}
-                        className="flex space-x-4"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="portrait" id="portrait" />
-                          <Label htmlFor="portrait">Portrait</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="landscape" id="landscape" />
-                          <Label htmlFor="landscape">Landscape</Label>
-                        </div>
-                      </RadioGroup>
-                    </div>
-                  </div>
-
-                  {pageSize === 'custom' && (
-                    <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <Label htmlFor="custom-width" className="text-xs">Width (mm)</Label>
+                        <Label htmlFor="boxes-per-row" className="text-xs">Boxes Per Row</Label>
                         <Input
-                          id="custom-width"
+                          id="boxes-per-row"
                           type="number"
-                          min="50"
-                          value={customWidth}
-                          onChange={(e) => setCustomWidth(Number(e.target.value))}
+                          min="1"
+                          value={boxesPerRow === null ? '' : boxesPerRow}
+                          onChange={(e) => {
+                            const value = e.target.value === '' ? null : Number(e.target.value);
+                            setBoxesPerRow(value);
+                          }}
+                          placeholder="Auto"
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor="custom-height" className="text-xs">Height (mm)</Label>
+                        <Label htmlFor="boxes-per-column" className="text-xs">Boxes Per Column</Label>
                         <Input
-                          id="custom-height"
+                          id="boxes-per-column"
                           type="number"
-                          min="50"
-                          value={customHeight}
-                          onChange={(e) => setCustomHeight(Number(e.target.value))}
+                          min="1"
+                          value={boxesPerColumn === null ? '' : boxesPerColumn}
+                          onChange={(e) => {
+                            const value = e.target.value === '' ? null : Number(e.target.value);
+                            setBoxesPerColumn(value);
+                          }}
+                          placeholder="Auto"
                         />
                       </div>
                     </div>
-                  )}
-                </div>
 
-                {/* Box Settings */}
-                <div className="space-y-3">
-                  <h3 className="text-sm font-medium">Box Settings</h3>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <Label>Box Width: {boxWidth} mm</Label>
-                      </div>
-                      <Slider
-                        value={[boxWidth]}
-                        min={20}
-                        max={100}
-                        step={1}
-                        onValueChange={(value) => setBoxWidth(value[0])}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <Label>Box Height: {boxHeight} mm</Label>
-                      </div>
-                      <Slider
-                        value={[boxHeight]}
-                        min={15}
-                        max={80}
-                        step={1}
-                        onValueChange={(value) => setBoxHeight(value[0])}
-                      />
+                    <div className="mt-2 text-center">
+                      <p className="text-sm font-medium">
+                        {boxesPerPage} boxes per page ({data.length} items ÷ {boxesPerPage} boxes = {totalPages} pages)
+                      </p>
                     </div>
                   </div>
+                </TabsContent>
 
-                  {/* Box Spacing Setting */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <Label>Box Spacing: {boxSpacing} mm</Label>
-                    </div>
-                    <Slider
-                      value={[boxSpacing]}
-                      min={5}
-                      max={30}
-                      step={1}
-                      onValueChange={(value) => setBoxSpacing(value[0])}
-                    />
-                    <p className="text-xs text-gray-500">
-                      Space between boxes in layout
-                    </p>
-                  </div>
-
-                  {/* Count Position Setting */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="count-position" className="font-medium">
-                        Place Count Outside Box
-                      </Label>
-                      <Switch
-                        id="count-position"
-                        checked={countOutsideBox}
-                        onCheckedChange={setCountOutsideBox}
+                {/* Color Settings Tab */}
+                <TabsContent value="colors" className="space-y-6">
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium">Box & Content Colors</h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <ColorPicker
+                        label="Box Border Color"
+                        value={boxBorderColor}
+                        onChange={setBoxBorderColor}
+                        presets={colorPresets.boxBorder}
+                      />
+                      
+                      <ColorPicker
+                        label="Count Number Color"
+                        value={countColor}
+                        onChange={setCountColor}
+                        presets={colorPresets.countNumber}
+                      />
+                      
+                      <ColorPicker
+                        label="Serial Number Color"
+                        value={serialColor}
+                        onChange={setSerialColor}
+                        presets={colorPresets.serial}
+                      />
+                      
+                      <ColorPicker
+                        label="QR Code Color"
+                        value={qrCodeColor}
+                        onChange={setQrCodeColor}
+                        presets={colorPresets.qrCode}
+                      />
+                      
+                      <ColorPicker
+                        label="QR Code Background"
+                        value={qrCodeBgColor}
+                        onChange={setQrCodeBgColor}
+                        presets={['#FFFFFF', '#F1F1F1', '#FFDEE2', '#E5DEFF', '#D3E4FD', '#F2FCE2']}
                       />
                     </div>
-                    <p className="text-xs text-gray-500">
-                      When enabled, the count number will be placed outside the box on the left (recommended)
-                    </p>
-                  </div>
-                </div>
-
-                {/* Footer Settings (NEW) */}
-                <div className="space-y-3 border-t pt-3">
-                  <h3 className="text-sm font-medium">Footer Settings</h3>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox 
-                        id="show-footer"
-                        checked={showFooter}
-                        onCheckedChange={(checked) => setShowFooter(checked as boolean)}
-                      />
-                      <Label htmlFor="show-footer" className="font-medium">
-                        Show Footer Information
-                      </Label>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      Enable/disable the footer with quantity and sticker information
-                    </p>
                   </div>
                   
                   {showFooter && (
-                    <>
-                      <div className="grid grid-cols-2 gap-4 mt-2">
-                        <div className="space-y-1">
-                          <Label htmlFor="custom-qty" className="text-xs">Custom Quantity Text</Label>
-                          <Input
-                            id="custom-qty"
-                            type="text"
-                            placeholder={`${data.length}`}
-                            value={customQty}
-                            onChange={(e) => setCustomQty(e.target.value)}
-                          />
-                          <p className="text-xs text-gray-500">
-                            Leave blank to use actual count ({data.length})
-                          </p>
-                        </div>
+                    <div className="space-y-3 border-t pt-3">
+                      <h3 className="text-sm font-medium">Footer Colors</h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <ColorPicker
+                          label="Quantity Text Color"
+                          value={footerQtyColor}
+                          onChange={setFooterQtyColor}
+                          presets={colorPresets.footerQty}
+                        />
                         
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <Label>Footer Font Size: {footerFontSize}pt</Label>
-                          </div>
-                          <Slider
-                            value={[footerFontSize]}
-                            min={8}
-                            max={16}
-                            step={1}
-                            onValueChange={(value) => setFooterFontSize(value[0])}
-                          />
-                        </div>
+                        <ColorPicker
+                          label="Info Text Color"
+                          value={footerInfoColor}
+                          onChange={setFooterInfoColor}
+                          presets={colorPresets.footerInfo}
+                        />
                       </div>
-                    </>
+                    </div>
                   )}
-                </div>
-
-                {/* QR Code Settings */}
-                <div className="space-y-3">
-                  <h3 className="text-sm font-medium">QR Code & Font Settings</h3>
                   
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <Label>QR Code Size: {qrCodeSize}%</Label>
-                      </div>
-                      <Slider
-                        value={[qrCodeSize]}
-                        min={20}
-                        max={90}
-                        step={5}
-                        onValueChange={(value) => setQrCodeSize(value[0])}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <Label>Font Size: {fontSize}pt</Label>
-                      </div>
-                      <Slider
-                        value={[fontSize]}
-                        min={6}
-                        max={14}
-                        step={1}
-                        onValueChange={(value) => setFontSize(value[0])}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Font</Label>
-                    <Select value={fontFamily} onValueChange={setFontFamily}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select font" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {fontOptions.map((font) => (
-                          <SelectItem key={font.value} value={font.value}>
-                            {font.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                
-                {/* Advanced Layout Settings */}
-                <div className="space-y-3 border-t pt-3">
-                  <h3 className="text-sm font-medium">Advanced Layout (Optional)</h3>
-                  <p className="text-xs text-gray-500">Manually specify boxes per row/column or leave empty for auto-calculation</p>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label htmlFor="boxes-per-row" className="text-xs">Boxes Per Row</Label>
-                      <Input
-                        id="boxes-per-row"
-                        type="number"
-                        min="1"
-                        value={boxesPerRow === null ? '' : boxesPerRow}
-                        onChange={(e) => {
-                          const value = e.target.value === '' ? null : Number(e.target.value);
-                          setBoxesPerRow(value);
-                        }}
-                        placeholder="Auto"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="boxes-per-column" className="text-xs">Boxes Per Column</Label>
-                      <Input
-                        id="boxes-per-column"
-                        type="number"
-                        min="1"
-                        value={boxesPerColumn === null ? '' : boxesPerColumn}
-                        onChange={(e) => {
-                          const value = e.target.value === '' ? null : Number(e.target.value);
-                          setBoxesPerColumn(value);
-                        }}
-                        placeholder="Auto"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-2 text-center">
-                    <p className="text-sm font-medium">
-                      {boxesPerPage} boxes per page ({data.length} items ÷ {boxesPerPage} boxes = {totalPages} pages)
-                    </p>
-                  </div>
-                  
-                  <div className="flex justify-center mt-2">
+                  <div className="flex justify-center mt-6">
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={resetToDefaults}
                     >
-                      Reset to Defaults
+                      Reset All to Defaults
                     </Button>
                   </div>
-                </div>
-              </div>
+                </TabsContent>
+              </Tabs>
             </CollapsibleContent>
           </Collapsible>
         </div>
@@ -627,7 +807,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
               {fileFormat === 'eps' && (
                 <>
                   <li>EPS files with {boxWidth}mm × {boxHeight}mm boxes and {boxSpacing}mm spacing</li>
-                  <li>Count numbers displayed outside each box in red</li>
+                  <li>Count numbers displayed outside each box in selected color</li>
                   <li>QR codes positioned on the right side</li>
                   <li>Serial numbers centered on the left side</li>
                 </>
@@ -636,7 +816,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                 <>
                   <li>{pageSize === 'custom' ? 'Custom size' : pageSizes.find(p => p.value === pageSize)?.label} PDF in {orientation} orientation</li>
                   <li>Up to {boxesPerPage} QR codes per page with {boxSpacing}mm spacing</li>
-                  <li>Count numbers displayed outside each box in red</li>
+                  <li>Count numbers displayed outside each box in selected color</li>
                   <li>Serial numbers centered in each box's left half</li>
                   <li>{boxWidth}mm × {boxHeight}mm sticker size</li>
                 </>
@@ -646,7 +826,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                   <li>SVG files with count numbers outside each box</li>
                   <li>All boxes separated with {boxSpacing}mm spacing</li>
                   <li>Serial numbers and QR codes properly centered</li>
-                  <li>{boxWidth}mm × {boxHeight}mm sticker size with thin red border</li>
+                  <li>{boxWidth}mm × {boxHeight}mm sticker size with customizable border</li>
                 </>
               )}
             </ul>

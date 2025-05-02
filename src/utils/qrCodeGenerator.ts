@@ -19,9 +19,17 @@ export interface GenerationOptions {
   boxesPerColumn?: number; // optional manual override for boxes per column
   countOutsideBox?: boolean; // whether to place count number outside the box
   boxSpacing?: number; // spacing between boxes in mm
-  showFooter?: boolean; // whether to show the footer (NEW)
-  customQty?: string; // custom quantity text (NEW)
-  footerFontSize?: number; // footer font size (NEW)
+  showFooter?: boolean; // whether to show the footer
+  customQty?: string; // custom quantity text
+  footerFontSize?: number; // footer font size
+  // New color options
+  boxBorderColor?: string; // color for box border (default: #FF0000 - red)
+  countColor?: string; // color for count numbers (default: #FF0000 - red)
+  serialColor?: string; // color for serial numbers (default: #000000 - black)
+  qrCodeColor?: string; // color for QR code (default: #000000 - black)
+  qrCodeBgColor?: string; // background color for QR code (default: #FFFFFF - white)
+  footerQtyColor?: string; // color for "Qty. - X each" text (default: #FF0000 - red)
+  footerInfoColor?: string; // color for sticker info text (default: #00AA50 - green)
 }
 
 // Default options
@@ -37,6 +45,14 @@ const defaultOptions: GenerationOptions = {
   boxSpacing: 10, // Default 10mm spacing between boxes
   showFooter: true, // Default show footer
   footerFontSize: 12, // Default footer font size
+  // Default color options
+  boxBorderColor: '#FF0000', // Red box border
+  countColor: '#FF0000', // Red count numbers
+  serialColor: '#000000', // Black serial numbers
+  qrCodeColor: '#000000', // Black QR code
+  qrCodeBgColor: '#FFFFFF', // White QR code background
+  footerQtyColor: '#FF0000', // Red quantity text in footer
+  footerInfoColor: '#00AA50', // Green info text in footer
 };
 
 // Gets page dimensions in mm based on the page size
@@ -75,12 +91,12 @@ export const generateQRCodeSVG = (text: string, index: number, options: Partial<
   const size = 100;
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-      <rect width="100%" height="100%" fill="white" />
-      <rect x="10%" y="10%" width="80%" height="80%" fill="black" />
-      <text x="10%" y="20%" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="10" fill="red" text-anchor="start">
+      <rect width="100%" height="100%" fill="${opts.qrCodeBgColor}" />
+      <rect x="10%" y="10%" width="80%" height="80%" fill="${opts.qrCodeColor}" />
+      <text x="10%" y="20%" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="10" fill="${opts.countColor}" text-anchor="start">
         ${index}.
       </text>
-      <text x="25%" y="50%" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="10" font-weight="bold" text-anchor="start">
+      <text x="25%" y="50%" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="10" font-weight="bold" fill="${opts.serialColor}" text-anchor="start">
         ${text}
       </text>
     </svg>
@@ -97,6 +113,12 @@ export const generateQRCodeEPS = (text: string, index: number, options: Partial<
   const fontName = opts.fontFamily.includes('bold') 
     ? `/Helvetica-Bold findfont def` 
     : `/${opts.fontFamily.charAt(0).toUpperCase() + opts.fontFamily.slice(1)} findfont def`;
+  
+  // Convert hex colors to RGB for EPS
+  const countColorRGB = hexToRGB(opts.countColor || defaultOptions.countColor!);
+  const serialColorRGB = hexToRGB(opts.serialColor || defaultOptions.serialColor!);
+  const qrColorRGB = hexToRGB(opts.qrCodeColor || defaultOptions.qrCodeColor!);
+  const qrBgColorRGB = hexToRGB(opts.qrCodeBgColor || defaultOptions.qrCodeBgColor!);
   
   let eps = `%!PS-Adobe-3.0 EPSF-3.0
 %%BoundingBox: 0 0 ${size} ${size}
@@ -118,6 +140,7 @@ export const generateQRCodeEPS = (text: string, index: number, options: Partial<
 /RF {rectfill} def
 /SF {selectfont} def
 /SH {show} def
+/SRGB {setrgbcolor} def
 %%EndProlog
 
 % QR Code for: ${text}
@@ -125,22 +148,22 @@ export const generateQRCodeEPS = (text: string, index: number, options: Partial<
 % Font setup - Using selected font
 /QR-Font ${fontName}
 
-% White background
-1.0 1.0 1.0 setrgbcolor
+% Background
+${qrBgColorRGB} SRGB
 0 0 ${size} ${size} RF
 
-% Black QR code placeholder
-0.0 0.0 0.0 setrgbcolor
+% QR code placeholder
+${qrColorRGB} SRGB
 ${size * 0.1} ${size * 0.1} ${size * 0.8} ${size * 0.8} RF
 
-% Index number in red
-1.0 0.0 0.0 setrgbcolor
+% Index number in specified color
+${countColorRGB} SRGB
 /QR-Font ${opts.fontSize * 2} SF
 ${size * 0.1} ${size * 0.9} M
 (${index}.) SH
 
-% Serial number text
-0.0 0.0 0.0 setrgbcolor
+% Serial number text in specified color
+${serialColorRGB} SRGB
 /QR-Font ${opts.fontSize * 2} SF
 ${size * 0.2} ${size * 0.5} M
 (${text}) SH
@@ -149,6 +172,20 @@ ${size * 0.2} ${size * 0.5} M
 `;
   
   return eps;
+};
+
+// Helper function to convert hex color to RGB format for EPS
+const hexToRGB = (hex: string): string => {
+  // Remove # if present
+  hex = hex.replace(/^#/, '');
+  
+  // Parse hex values
+  const bigint = parseInt(hex, 16);
+  const r = ((bigint >> 16) & 255) / 255;
+  const g = ((bigint >> 8) & 255) / 255;
+  const b = (bigint & 255) / 255;
+  
+  return `${r.toFixed(3)} ${g.toFixed(3)} ${b.toFixed(3)}`;
 };
 
 // Creates an illustrator-ready SVG with multiple QR codes in a grid layout
@@ -178,24 +215,24 @@ export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<Gen
     const x = padding + col * (opts.boxWidth + padding);
     const y = padding + rowNum * (opts.boxHeight + padding);
     
-    // Draw box with thin red border (like in the image)
+    // Draw box with border in the specified color
     svgContent += `
       <g transform="translate(${x}, ${y})">
-        <rect width="${opts.boxWidth}" height="${opts.boxHeight}" fill="white" stroke="#FF0000" stroke-width="0.5" />
+        <rect width="${opts.boxWidth}" height="${opts.boxHeight}" fill="white" stroke="${opts.boxBorderColor}" stroke-width="0.5" />
     `;
     
-    // If count is outside the box, position it to the left of the box in red
+    // If count is outside the box, position it to the left of the box in specified color
     if (opts.countOutsideBox) {
       svgContent += `
-        <text x="${-5}" y="${opts.boxHeight / 2}" font-family="${opts.fontFamily}" font-size="${opts.fontSize * 1.3}" fill="red" text-anchor="end" dominant-baseline="middle">
+        <text x="${-5}" y="${opts.boxHeight / 2}" font-family="${opts.fontFamily}" font-size="${opts.fontSize * 1.3}" fill="${opts.countColor}" text-anchor="end" dominant-baseline="middle">
           ${count}.
         </text>
       `;
     }
     
-    // Serial number centered in the left half of the box
+    // Serial number centered in the left half of the box with specified color
     svgContent += `
-      <text x="${opts.boxWidth / 4}" y="${opts.boxHeight/2}" font-family="${opts.fontFamily}" font-size="${opts.fontSize}" font-weight="bold" text-anchor="middle" dominant-baseline="middle">
+      <text x="${opts.boxWidth / 4}" y="${opts.boxHeight/2}" font-family="${opts.fontFamily}" font-size="${opts.fontSize}" font-weight="bold" text-anchor="middle" dominant-baseline="middle" fill="${opts.serialColor}">
         ${serial}
       </text>
     `;
@@ -212,16 +249,16 @@ export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<Gen
     const footerSize = opts.footerFontSize || defaultOptions.footerFontSize;
     const qtyText = opts.customQty || `${data.length}`;
     
-    // Add footer information at the bottom
+    // Add footer information at the bottom with specified colors
     svgContent += `
-      <text x="20" y="${svgHeight - 20}" font-family="${defaultOptions.fontFamily}" font-size="${footerSize}" fill="red" text-anchor="start">
+      <text x="20" y="${svgHeight - 20}" font-family="${defaultOptions.fontFamily}" font-size="${footerSize}" fill="${opts.footerQtyColor}" text-anchor="start">
         Qty. - ${qtyText} each
       </text>
       
-      <text x="${svgWidth - 20}" y="${svgHeight - 30}" font-family="${defaultOptions.fontFamily}" font-size="${footerSize}" fill="#00AA50" text-anchor="end">
+      <text x="${svgWidth - 20}" y="${svgHeight - 30}" font-family="${defaultOptions.fontFamily}" font-size="${footerSize}" fill="${opts.footerInfoColor}" text-anchor="end">
         Serial Number+QR code
       </text>
-      <text x="${svgWidth - 20}" y="${svgHeight - 10}" font-family="${defaultOptions.fontFamily}" font-size="${footerSize}" fill="#00AA50" text-anchor="end">
+      <text x="${svgWidth - 20}" y="${svgHeight - 10}" font-family="${defaultOptions.fontFamily}" font-size="${footerSize}" fill="${opts.footerInfoColor}" text-anchor="end">
         Sticker Size - ${opts.boxWidth} x ${opts.boxHeight}mm
       </text>
     `;
@@ -371,16 +408,17 @@ ${pageWidth - 20} 20 M
 };
 
 // Generate QR code data URI for embedding in PDF
-export const generateQRCodeDataURI = async (text: string): Promise<string> => {
+export const generateQRCodeDataURI = async (text: string, options: Partial<GenerationOptions> = {}): Promise<string> => {
+  const opts = { ...defaultOptions, ...options };
   try {
-    // Generate QR code as data URL
+    // Generate QR code as data URL with specified colors
     const dataUrl = await QRCode.toDataURL(text, {
       errorCorrectionLevel: 'M',
       margin: 1,
       width: 200,
       color: {
-        dark: '#000000',
-        light: '#ffffff'
+        dark: opts.qrCodeColor || defaultOptions.qrCodeColor!,
+        light: opts.qrCodeBgColor || defaultOptions.qrCodeBgColor!
       }
     });
     return dataUrl;
@@ -459,6 +497,23 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   const fontStyle = opts.fontFamily.includes('bold') ? 'bold' : 'normal';
   const font = getFont();
   
+  // Convert hex color to RGB array for PDF (0-255 range)
+  const hexToRGBArray = (hex: string): [number, number, number] => {
+    hex = hex.replace(/^#/, '');
+    const bigint = parseInt(hex, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return [r, g, b];
+  };
+  
+  // Parse colors
+  const boxBorderColorRGB = hexToRGBArray(opts.boxBorderColor || defaultOptions.boxBorderColor!);
+  const countColorRGB = hexToRGBArray(opts.countColor || defaultOptions.countColor!);
+  const serialColorRGB = hexToRGBArray(opts.serialColor || defaultOptions.serialColor!);
+  const footerQtyColorRGB = hexToRGBArray(opts.footerQtyColor || defaultOptions.footerQtyColor!);
+  const footerInfoColorRGB = hexToRGBArray(opts.footerInfoColor || defaultOptions.footerInfoColor!);
+  
   // Generate QR codes and add to PDF page by page
   for (let pageNum = 0; pageNum < numPages; pageNum++) {
     // Add a new page after the first page
@@ -479,7 +534,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
       const qrText = row['QR Code Text'] || row.qrCodeText || serial;
       const count = row['Count'] || row.count || (i + 1).toString();
       
-      const promise = generateQRCodeDataURI(qrText).then(dataUrl => {
+      const promise = generateQRCodeDataURI(qrText, opts).then(dataUrl => {
         // Calculate position in the grid
         const localIndex = i - startIndex; // Index relative to current page
         const col = localIndex % layout.boxesPerRow;
@@ -489,21 +544,21 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
         const x = layout.horizontalMargin + (col * (opts.boxWidth + boxSpacing));
         const y = layout.verticalMargin + (rowNum * (opts.boxHeight + boxSpacing));
         
-        // Draw box border - thin red border like in the image
-        pdf.setDrawColor(255, 0, 0); // Red border
+        // Draw box border with specified color
+        pdf.setDrawColor(...boxBorderColorRGB); // Box border color
         pdf.setLineWidth(0.2);
         pdf.rect(x, y, opts.boxWidth, opts.boxHeight);
         
-        // Add count number in red outside the box
+        // Add count number in specified color outside the box
         if (opts.countOutsideBox) {
-          pdf.setTextColor(255, 0, 0);
+          pdf.setTextColor(...countColorRGB); // Count color
           pdf.setFontSize(10);
           pdf.setFont(font, 'bold');
           pdf.text(`${count}.`, x - 5, y + opts.boxHeight / 2, { align: 'right', baseline: 'middle' });
         }
         
-        // Add serial number in black in the center of the left half of the box
-        pdf.setTextColor(0, 0, 0);
+        // Add serial number in specified color in the center of the left half of the box
+        pdf.setTextColor(...serialColorRGB); // Serial color
         pdf.setFontSize(opts.fontSize);
         pdf.setFont(font, fontStyle);
         
@@ -540,13 +595,13 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
     for (let i = 0; i < numPages; i++) {
       pdf.setPage(i + 1);
       
-      // Add "Qty. - X each" in red on the bottom left
+      // Add "Qty. - X each" with specified color on the bottom left
       pdf.setFontSize(footerSize);
-      pdf.setTextColor(255, 0, 0);
+      pdf.setTextColor(...footerQtyColorRGB); // Qty color
       pdf.text(`Qty. - ${qtyText} each`, 20, pageDims.height - 10);
       
-      // Add "Serial Number+QR code" and "Sticker Size" in green on the bottom right
-      pdf.setTextColor(0, 170, 80); // Green color
+      // Add footer information with specified color on the bottom right
+      pdf.setTextColor(...footerInfoColorRGB); // Info color
       pdf.setFont(font, 'bold');
       pdf.text("Serial Number+QR code", pageDims.width - 20, pageDims.height - 20, { align: 'right' });
       pdf.text(`Sticker Size - ${opts.boxWidth} x ${opts.boxHeight}mm`, pageDims.width - 20, pageDims.height - 10, { align: 'right' });
