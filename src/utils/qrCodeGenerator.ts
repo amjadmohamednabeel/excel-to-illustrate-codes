@@ -1,4 +1,3 @@
-
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
@@ -19,6 +18,7 @@ export interface GenerationOptions {
   boxesPerRow?: number; // optional manual override for boxes per row
   boxesPerColumn?: number; // optional manual override for boxes per column
   countOutsideBox?: boolean; // whether to place count number outside the box
+  boxSpacing?: number; // spacing between boxes in mm
 }
 
 // Default options
@@ -30,7 +30,8 @@ const defaultOptions: GenerationOptions = {
   fontSize: 9, // 9pt font size
   pageSize: 'a4', // A4 page size
   fontFamily: 'helvetica-bold', // Helvetica Bold font
-  countOutsideBox: false, // Default count inside box
+  countOutsideBox: true, // Default count outside box
+  boxSpacing: 10, // Default 10mm spacing between boxes
 };
 
 // Gets page dimensions in mm based on the page size
@@ -149,7 +150,7 @@ ${size * 0.2} ${size * 0.5} M
 export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<GenerationOptions> = {}): string => {
   const opts = { ...defaultOptions, ...options };
   const qrSize = opts.boxHeight * opts.qrCodeSize;
-  const padding = 10;
+  const padding = opts.boxSpacing || 10; // Use boxSpacing for padding
   const boxesPerRow = opts.boxesPerRow || 5; // Default 5 boxes per row
   const rows = Math.ceil(data.length / boxesPerRow);
   
@@ -164,7 +165,7 @@ export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<Gen
   data.forEach((row, index) => {
     const qrText = row['QR Code Text'] || row.qrCodeText || '';
     const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
-    const count = row['Count'] || row.count || '1';
+    const count = row['Count'] || row.count || (index + 1).toString();
     
     const col = index % boxesPerRow;
     const rowNum = Math.floor(index / boxesPerRow);
@@ -172,24 +173,48 @@ export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<Gen
     const x = padding + col * (opts.boxWidth + padding);
     const y = padding + rowNum * (opts.boxHeight + padding);
     
+    // Draw box with thin red border (like in the image)
     svgContent += `
       <g transform="translate(${x}, ${y})">
-        <rect width="${opts.boxWidth}" height="${opts.boxHeight}" fill="white" stroke="lightgray" stroke-width="1" />
-        ${opts.countOutsideBox 
-          ? `<text x="${-5}" y="${opts.boxHeight / 2}" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="${opts.fontSize * 1.3}" fill="red" text-anchor="end">
-              ${count}
-             </text>`
-          : `<text x="10" y="20" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="${opts.fontSize * 1.3}" fill="red">
-              ${index + 1}.
-             </text>`
-        }
-        <text x="${opts.boxWidth / 4}" y="${opts.boxHeight/2 + 5}" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="${opts.fontSize}" font-weight="bold" text-anchor="middle">
-          ${serial}
+        <rect width="${opts.boxWidth}" height="${opts.boxHeight}" fill="white" stroke="#FF0000" stroke-width="0.5" />
+    `;
+    
+    // If count is outside the box, position it to the left of the box in red
+    if (opts.countOutsideBox) {
+      svgContent += `
+        <text x="${-5}" y="${opts.boxHeight / 2}" font-family="${opts.fontFamily}" font-size="${opts.fontSize * 1.3}" fill="red" text-anchor="end" dominant-baseline="middle">
+          ${count}.
         </text>
-        <image x="${opts.boxWidth - qrSize - 5}" y="${(opts.boxHeight - qrSize) / 2}" width="${qrSize}" height="${qrSize}" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" />
+      `;
+    }
+    
+    // Serial number centered in the left half of the box
+    svgContent += `
+      <text x="${opts.boxWidth / 4}" y="${opts.boxHeight/2}" font-family="${opts.fontFamily}" font-size="${opts.fontSize}" font-weight="bold" text-anchor="middle" dominant-baseline="middle">
+        ${serial}
+      </text>
+    `;
+    
+    // QR code positioned on the right side, centered vertically
+    svgContent += `
+      <image x="${opts.boxWidth * 0.6}" y="${(opts.boxHeight - qrSize) / 2}" width="${qrSize}" height="${qrSize}" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" />
       </g>
     `;
   });
+  
+  // Add footer information at the bottom like in the image
+  svgContent += `
+    <text x="20" y="${svgHeight - 20}" font-family="${defaultOptions.fontFamily}" font-size="14" fill="red" text-anchor="start">
+      Qty. - ${data.length} each
+    </text>
+    
+    <text x="${svgWidth - 20}" y="${svgHeight - 30}" font-family="${defaultOptions.fontFamily}" font-size="14" fill="#00AA50" text-anchor="end">
+      Serial Number+QR code
+    </text>
+    <text x="${svgWidth - 20}" y="${svgHeight - 10}" font-family="${defaultOptions.fontFamily}" font-size="14" fill="#00AA50" text-anchor="end">
+      Sticker Size - ${opts.boxWidth} x ${opts.boxHeight}mm
+    </text>
+  `;
   
   svgContent += `</svg>`;
   return svgContent;
@@ -201,8 +226,8 @@ export const generateEPSLayout = (data: ExcelRow[], options: Partial<GenerationO
   
   const boxWidth = opts.boxWidth * 2.83465;  // Convert mm to points (1mm = 2.83465pts)
   const boxHeight = opts.boxHeight * 2.83465;
-  const padding = 10; // padding between boxes in points
-  const boxesPerRow = opts.boxesPerRow || 4; // Default 4 boxes per row for EPS
+  const padding = (opts.boxSpacing || 10) * 2.83465; // Convert spacing to points
+  const boxesPerRow = opts.boxesPerRow || 5; // Default 5 boxes per row
   const rows = Math.ceil(data.length / boxesPerRow);
   
   const pageWidth = (boxWidth + padding) * boxesPerRow + padding;
@@ -263,6 +288,7 @@ export const generateEPSLayout = (data: ExcelRow[], options: Partial<GenerationO
   data.forEach((row, index) => {
     const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
     const qrText = row['QR Code Text'] || row.qrCodeText || '';
+    const count = row['Count'] || row.count || (index + 1).toString();
     
     const col = index % boxesPerRow;
     const rowNum = Math.floor(index / boxesPerRow);
@@ -270,8 +296,8 @@ export const generateEPSLayout = (data: ExcelRow[], options: Partial<GenerationO
     const x = padding + col * (boxWidth + padding);
     const y = pageHeight - (padding + (rowNum + 1) * (boxHeight + padding));
     
-    const qrX = x + boxWidth - qrSize - 5; // 5 points from right edge
-    const textPosition = x + ((boxWidth - qrSize) / 4); // Center point for text
+    const qrX = x + (boxWidth * 0.6); // Move QR code to the right position (60%)
+    const textX = x + (boxWidth * 0.25); // Center text in the left half
     
     epsContent += `
 % QR Code and Label ${index + 1}
@@ -280,8 +306,8 @@ GS
   1.0 1.0 1.0 setrgbcolor
   ${x} ${y} ${boxWidth} ${boxHeight} RF
   
-  0.8 0.8 0.8 setrgbcolor
-  0.5 setlinewidth
+  1.0 0.0 0.0 setrgbcolor % Red border like in the image
+  0.3 setlinewidth
   ${x} ${y} M
   ${boxWidth} 0 RL
   0 ${boxHeight} RL
@@ -293,22 +319,36 @@ GS
   0.0 0.0 0.0 setrgbcolor
   ${qrX} ${y + (boxHeight - qrSize) / 2} ${qrSize} ${qrSize} RF
   
-  % Index number in top-left
+  % Count number outside the box in red
   1.0 0.0 0.0 setrgbcolor
-  /${boldFontName} ${opts.fontSize} SF
-  ${x + 5} ${y + boxHeight - 10} M
-  (${index + 1}.) SH
+  /${boldFontName} ${opts.fontSize + 2} SF
+  ${x - 10} ${y + boxHeight / 2} M
+  (${count}.) SH
   
   % Serial number on left side (centered vertically and horizontally)
   0.0 0.0 0.0 setrgbcolor
   /${boldFontName} ${opts.fontSize + 2} SF
-  ${textPosition} ${y + (boxHeight / 2)} M
+  ${textX} ${y + (boxHeight / 2)} M
   (${serial}) dup stringwidth pop 2 div neg 0 rmoveto SH
 GR
 `;
   });
 
+  // Add footer information like in the image
   epsContent += `
+% Footer information
+1.0 0.0 0.0 setrgbcolor % Red text
+/${boldFontName} 14 SF
+20 20 M
+(Qty. - ${data.length} each) SH
+
+0.0 0.7 0.3 setrgbcolor % Green text
+/${boldFontName} 14 SF
+${pageWidth - 20} 40 M
+(Serial Number+QR code) dup stringwidth pop neg 0 rmoveto SH
+${pageWidth - 20} 20 M
+(Sticker Size - ${opts.boxWidth} x ${opts.boxHeight}mm) dup stringwidth pop neg 0 rmoveto SH
+
 %%EOF`;
 
   return epsContent;
@@ -338,7 +378,7 @@ export const generateQRCodeDataURI = async (text: string): Promise<string> => {
 // Calculate layout based on options
 const calculateLayout = (options: GenerationOptions) => {
   const pageDims = getPageDimensions(options.pageSize, options.orientation);
-  const marginSpace = 20; // 10mm on each side
+  const boxSpacing = options.boxSpacing || 10; // Use box spacing from options
   
   // If manual values are provided, use them
   if (options.boxesPerRow && options.boxesPerColumn) {
@@ -346,21 +386,21 @@ const calculateLayout = (options: GenerationOptions) => {
       boxesPerRow: options.boxesPerRow,
       boxesPerColumn: options.boxesPerColumn,
       boxesPerPage: options.boxesPerRow * options.boxesPerColumn,
-      horizontalMargin: (pageDims.width - (options.boxesPerRow * options.boxWidth)) / 2,
-      verticalMargin: (pageDims.height - (options.boxesPerColumn * options.boxHeight)) / 2
+      horizontalMargin: (pageDims.width - ((options.boxesPerRow * options.boxWidth) + ((options.boxesPerRow - 1) * boxSpacing))) / 2,
+      verticalMargin: (pageDims.height - ((options.boxesPerColumn * options.boxHeight) + ((options.boxesPerColumn - 1) * boxSpacing))) / 2
     };
   }
   
   // Otherwise calculate automatically
-  const boxesPerRow = Math.floor((pageDims.width - marginSpace) / options.boxWidth);
-  const boxesPerColumn = Math.floor((pageDims.height - marginSpace) / options.boxHeight);
+  const boxesPerRow = Math.floor((pageDims.width - boxSpacing) / (options.boxWidth + boxSpacing));
+  const boxesPerColumn = Math.floor((pageDims.height - boxSpacing) / (options.boxHeight + boxSpacing));
   
   return {
     boxesPerRow,
     boxesPerColumn,
     boxesPerPage: boxesPerRow * boxesPerColumn,
-    horizontalMargin: (pageDims.width - (boxesPerRow * options.boxWidth)) / 2,
-    verticalMargin: (pageDims.height - (boxesPerColumn * options.boxHeight)) / 2
+    horizontalMargin: (pageDims.width - ((boxesPerRow * options.boxWidth) + ((boxesPerRow - 1) * boxSpacing))) / 2,
+    verticalMargin: (pageDims.height - ((boxesPerColumn * options.boxHeight) + ((boxesPerColumn - 1) * boxSpacing))) / 2
   };
 };
 
@@ -384,6 +424,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   
   // Calculate layout
   const layout = calculateLayout(opts);
+  const boxSpacing = opts.boxSpacing || 10; // Get spacing between boxes
   
   // Calculate number of pages needed
   const numPages = Math.ceil(data.length / layout.boxesPerPage);
@@ -420,7 +461,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
       const row = data[i];
       const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${i}`;
       const qrText = row['QR Code Text'] || row.qrCodeText || serial;
-      const count = row['Count'] || row.count || '1';
+      const count = row['Count'] || row.count || (i + 1).toString();
       
       const promise = generateQRCodeDataURI(qrText).then(dataUrl => {
         // Calculate position in the grid
@@ -428,42 +469,39 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
         const col = localIndex % layout.boxesPerRow;
         const rowNum = Math.floor(localIndex / layout.boxesPerRow);
         
-        // Calculate X and Y position for this box
-        const x = layout.horizontalMargin + (col * opts.boxWidth);
-        const y = layout.verticalMargin + (rowNum * opts.boxHeight);
+        // Calculate X and Y position for this box, accounting for spacing
+        const x = layout.horizontalMargin + (col * (opts.boxWidth + boxSpacing));
+        const y = layout.verticalMargin + (rowNum * (opts.boxHeight + boxSpacing));
         
-        // Draw box border
-        pdf.setDrawColor(200, 200, 200); // Light gray border for boxes
-        pdf.setLineWidth(0.1);
+        // Draw box border - thin red border like in the image
+        pdf.setDrawColor(255, 0, 0); // Red border
+        pdf.setLineWidth(0.2);
         pdf.rect(x, y, opts.boxWidth, opts.boxHeight);
         
-        // Add count number in red, either inside or outside the box
-        pdf.setTextColor(255, 0, 0);
-        pdf.setFontSize(8);
+        // Add count number in red outside the box
         if (opts.countOutsideBox) {
-          // Place count number outside the box, to the left
-          pdf.text(`${count}`, x - 5, y + opts.boxHeight / 2, { align: 'right' });
-        } else {
-          // Place count inside the box, top-left
-          pdf.text(`${i + 1}.`, x + 2, y + 5);
+          pdf.setTextColor(255, 0, 0);
+          pdf.setFontSize(10);
+          pdf.setFont(font, 'bold');
+          pdf.text(`${count}.`, x - 5, y + opts.boxHeight / 2, { align: 'right', baseline: 'middle' });
         }
         
-        // Add serial number in black on the left side, center aligned
+        // Add serial number in black in the center of the left half of the box
         pdf.setTextColor(0, 0, 0);
         pdf.setFontSize(opts.fontSize);
-        pdf.setFont(font, fontStyle); // Using selected font
+        pdf.setFont(font, fontStyle);
         
-        // Center the serial text vertically and horizontally in the left half of the box
+        // Center the serial text in the left half of the box
         const textWidth = pdf.getStringUnitWidth(serial) * pdf.getFontSize() / pdf.internal.scaleFactor;
-        const leftHalfCenter = x + (opts.boxWidth * 0.25); // Center of the left half
+        const leftHalfCenter = x + (opts.boxWidth * 0.25); // Center of the left half (25%)
         const textX = leftHalfCenter - (textWidth / 2);
-        const textY = y + (opts.boxHeight / 2) + 3; // Centered vertically with slight adjustment
+        const textY = y + (opts.boxHeight / 2); // Centered vertically
         
-        pdf.text(serial, textX, textY);
+        pdf.text(serial, textX, textY, { baseline: 'middle' });
         
         // Calculate QR code size and position (right side of box, centered)
-        const qrSize = opts.boxHeight * opts.qrCodeSize; // QR code size based on box height
-        const qrX = x + (opts.boxWidth * 0.6); // Positioned in the right half
+        const qrSize = opts.boxHeight * opts.qrCodeSize;
+        const qrX = x + (opts.boxWidth * 0.6); // Positioned at 60% of box width
         const qrY = y + (opts.boxHeight - qrSize) / 2; // Centered vertically
         
         // Add QR code if we have a data URL
@@ -478,24 +516,20 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
     await Promise.all(promises);
   }
   
-  // Add page number and generation date at the bottom of each page
+  // Add footer information like in the image
   for (let i = 0; i < numPages; i++) {
     pdf.setPage(i + 1);
     
-    // Add footer with information
+    // Add "Qty. - X each" in red on the bottom left
     pdf.setFontSize(12);
     pdf.setTextColor(255, 0, 0);
     pdf.text(`Qty. - ${data.length} each`, 20, pageDims.height - 10);
     
-    pdf.setTextColor(0, 150, 50); // Green color
+    // Add "Serial Number+QR code" and "Sticker Size" in green on the bottom right
+    pdf.setTextColor(0, 170, 80); // Green color
     pdf.setFont(font, 'bold');
-    pdf.text("Serial Number+QR code", pageDims.width - 60, pageDims.height - 15);
-    pdf.text(`Sticker Size - ${opts.boxWidth} x ${opts.boxHeight}mm`, pageDims.width - 60, pageDims.height - 10);
-    
-    // Optional: Add page number
-    pdf.setFontSize(8);
-    pdf.setTextColor(100, 100, 100);
-    pdf.text(`Page ${i + 1} of ${numPages}`, pageDims.width - 20, 10, { align: 'right' });
+    pdf.text("Serial Number+QR code", pageDims.width - 20, pageDims.height - 20, { align: 'right' });
+    pdf.text(`Sticker Size - ${opts.boxWidth} x ${opts.boxHeight}mm`, pageDims.width - 20, pageDims.height - 10, { align: 'right' });
   }
   
   return pdf.output('blob');

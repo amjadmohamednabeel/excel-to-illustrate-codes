@@ -43,6 +43,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   // Layout options
   const [boxWidth, setBoxWidth] = useState(50); // Default box width in mm
   const [boxHeight, setBoxHeight] = useState(30); // Default box height in mm
+  const [boxSpacing, setBoxSpacing] = useState(10); // Default spacing between boxes in mm
   const [qrCodeSize, setQrCodeSize] = useState(60); // Default QR code size percentage (60% of box height)
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [fontSize, setFontSize] = useState(9); // Default font size
@@ -53,7 +54,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [boxesPerRow, setBoxesPerRow] = useState<number | null>(null); // Auto-calculate by default
   const [boxesPerColumn, setBoxesPerColumn] = useState<number | null>(null); // Auto-calculate by default
   const [boxesPerPage, setBoxesPerPage] = useState<number>(25);
-  const [countOutsideBox, setCountOutsideBox] = useState(false); // New state for count position
+  const [countOutsideBox, setCountOutsideBox] = useState(true); // Default to true as per image
 
   // Calculate boxes per page based on current settings
   React.useEffect(() => {
@@ -65,15 +66,14 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
 
     // Otherwise calculate automatically based on page size and box dimensions
     const pageDimensions = getPageDimensions();
-    const marginSpace = 20; // 10mm on each side
     
-    // Calculate max boxes that can fit in each dimension
-    const maxBoxesInWidth = Math.floor((pageDimensions.width - marginSpace) / boxWidth);
-    const maxBoxesInHeight = Math.floor((pageDimensions.height - marginSpace) / boxHeight);
+    // Calculate max boxes that can fit in each dimension with spacing
+    const maxBoxesInWidth = Math.floor((pageDimensions.width - boxSpacing) / (boxWidth + boxSpacing));
+    const maxBoxesInHeight = Math.floor((pageDimensions.height - boxSpacing) / (boxHeight + boxSpacing));
     
     // Update calculated values
     setBoxesPerPage(maxBoxesInWidth * maxBoxesInHeight);
-  }, [boxWidth, boxHeight, orientation, pageSize, customWidth, customHeight, boxesPerRow, boxesPerColumn]);
+  }, [boxWidth, boxHeight, boxSpacing, orientation, pageSize, customWidth, customHeight, boxesPerRow, boxesPerColumn]);
   
   // Get current page dimensions in mm based on settings
   const getPageDimensions = () => {
@@ -109,6 +109,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
       const options: GenerationOptions = {
         boxWidth,
         boxHeight,
+        boxSpacing, // Include spacing between boxes
         qrCodeSize: qrCodeSize / 100, // Convert percentage to decimal
         orientation,
         fontSize,
@@ -116,7 +117,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
         fontFamily,
         boxesPerRow: boxesPerRow || undefined, // Use undefined for auto-calculation
         boxesPerColumn: boxesPerColumn || undefined, // Use undefined for auto-calculation
-        countOutsideBox, // Add the new option
+        countOutsideBox, // Add the count position option
       };
       
       await downloadIllustratorFiles(data, fileFormat, options);
@@ -164,6 +165,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const resetToDefaults = () => {
     setBoxWidth(50);
     setBoxHeight(30);
+    setBoxSpacing(10);
     setQrCodeSize(60);
     setOrientation('portrait');
     setFontSize(9);
@@ -173,7 +175,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setFontFamily('helvetica-bold');
     setBoxesPerRow(null);
     setBoxesPerColumn(null);
-    setCountOutsideBox(false);
+    setCountOutsideBox(true); // Match the image's layout
   };
 
   return (
@@ -234,41 +236,45 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
               )}
               
               <div className="overflow-auto max-h-[400px] border rounded p-4 w-full">
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid gap-4" style={{ 
+                  gridTemplateColumns: `repeat(auto-fill, minmax(120px, 1fr))`,
+                }}>
                   {getCurrentPageItems().map((row, index) => {
                     const actualIndex = previewPage * boxesPerPage + index;
                     const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${actualIndex}`;
                     const qrText = row['QR Code Text'] || row.qrCodeText || serial;
-                    const count = row['Count'] || row.count || '1';
+                    const count = row['Count'] || row.count || (actualIndex + 1).toString();
                     
                     return (
-                      <div key={index} className="relative border p-2 flex flex-row justify-between items-center" style={{ width: '120px', height: '80px' }}>
-                        {countOutsideBox && (
-                          <div className="absolute -left-5 top-1/2 transform -translate-y-1/2 text-red-500 text-xs font-bold">
-                            {count}
-                          </div>
-                        )}
-                        <div className="flex flex-col items-center justify-center w-1/2">
-                          {!countOutsideBox && (
-                            <div className="text-red-500 text-xs text-left w-full font-bold">{actualIndex + 1}.</div>
-                          )}
-                          <div className="text-xs font-bold mt-1 text-center">{serial}</div>
+                      <div key={index} className="relative">
+                        {/* Count number outside the box in red */}
+                        <div className="absolute -left-6 top-1/2 transform -translate-y-1/2 text-red-500 text-xs font-bold">
+                          {count}.
                         </div>
-                        <div className="flex justify-center items-center w-1/2">
-                          <QRCodeSVG value={qrText} size={40} />
+                        
+                        {/* Box with thin red border */}
+                        <div className="border border-red-500 p-2 flex flex-row justify-between items-center" style={{ width: '120px', height: '75px' }}>
+                          {/* Serial number centered in left half */}
+                          <div className="flex items-center justify-center w-1/2 h-full">
+                            <div className="text-xs font-bold text-center">{serial}</div>
+                          </div>
+                          
+                          {/* QR code centered in right half */}
+                          <div className="flex justify-center items-center w-1/2 h-full">
+                            <QRCodeSVG value={qrText} size={40} />
+                          </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
                 
-                <div className="text-center mt-2 text-sm text-gray-500">
-                  {data.length > boxesPerPage && (
-                    <p>
-                      Showing page {previewPage + 1} of {totalPages}. 
-                      {totalPages > 1 && ` Full PDF will include ${data.length} items across ${totalPages} pages.`}
-                    </p>
-                  )}
+                <div className="text-center mt-4 text-sm">
+                  <span className="text-red-500 font-bold">Qty. - {data.length} each</span>
+                  <span className="float-right text-green-600 font-bold">
+                    Serial Number+QR code<br />
+                    Sticker Size - {boxWidth} x {boxHeight}mm
+                  </span>
                 </div>
               </div>
             </div>
@@ -377,6 +383,23 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     </div>
                   </div>
 
+                  {/* Box Spacing Setting */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <Label>Box Spacing: {boxSpacing} mm</Label>
+                    </div>
+                    <Slider
+                      value={[boxSpacing]}
+                      min={5}
+                      max={30}
+                      step={1}
+                      onValueChange={(value) => setBoxSpacing(value[0])}
+                    />
+                    <p className="text-xs text-gray-500">
+                      Space between boxes in layout
+                    </p>
+                  </div>
+
                   {/* Count Position Setting */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -390,7 +413,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                       />
                     </div>
                     <p className="text-xs text-gray-500">
-                      When enabled, the count number will be placed outside the box on the left
+                      When enabled, the count number will be placed outside the box on the left (recommended)
                     </p>
                   </div>
                 </div>
@@ -528,26 +551,27 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
             <ul className="list-disc list-inside text-blue-600 mt-1 space-y-1">
               {fileFormat === 'eps' && (
                 <>
-                  <li>EPS files with {boxWidth}mm × {boxHeight}mm boxes</li>
+                  <li>EPS files with {boxWidth}mm × {boxHeight}mm boxes and {boxSpacing}mm spacing</li>
+                  <li>Count numbers displayed outside each box in red</li>
                   <li>QR codes positioned on the right side</li>
                   <li>Serial numbers centered on the left side</li>
-                  <li>Includes both individual QR codes and complete layout</li>
                 </>
               )}
               {fileFormat === 'pdf' && (
                 <>
                   <li>{pageSize === 'custom' ? 'Custom size' : pageSizes.find(p => p.value === pageSize)?.label} PDF in {orientation} orientation</li>
-                  <li>Up to {boxesPerPage} QR codes per page</li>
-                  <li>{countOutsideBox ? 'Count numbers displayed outside each box' : 'Sequential numbering in red'}</li>
-                  <li>Serial numbers displayed next to each QR code</li>
+                  <li>Up to {boxesPerPage} QR codes per page with {boxSpacing}mm spacing</li>
+                  <li>Count numbers displayed outside each box in red</li>
+                  <li>Serial numbers centered in each box's left half</li>
                   <li>{boxWidth}mm × {boxHeight}mm sticker size</li>
                 </>
               )}
               {fileFormat === 'svg' && (
                 <>
-                  <li>SVG files for easy web usage</li>
-                  <li>Individual QR codes in separate files</li>
-                  <li>Complete layout in a single SVG file</li>
+                  <li>SVG files with count numbers outside each box</li>
+                  <li>All boxes separated with {boxSpacing}mm spacing</li>
+                  <li>Serial numbers and QR codes properly centered</li>
+                  <li>{boxWidth}mm × {boxHeight}mm sticker size with thin red border</li>
                 </>
               )}
             </ul>
