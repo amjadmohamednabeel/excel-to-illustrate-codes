@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface QRCodeGeneratorProps {
   data: ExcelRow[];
@@ -55,6 +55,11 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [boxesPerColumn, setBoxesPerColumn] = useState<number | null>(null); // Auto-calculate by default
   const [boxesPerPage, setBoxesPerPage] = useState<number>(25);
   const [countOutsideBox, setCountOutsideBox] = useState(true); // Default to true as per image
+  
+  // Footer options (new)
+  const [showFooter, setShowFooter] = useState(true); // Whether to show the footer
+  const [customQty, setCustomQty] = useState<string>(""); // Custom quantity value
+  const [footerFontSize, setFooterFontSize] = useState(12); // Footer font size in pt
 
   // Calculate boxes per page based on current settings
   React.useEffect(() => {
@@ -109,15 +114,18 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
       const options: GenerationOptions = {
         boxWidth,
         boxHeight,
-        boxSpacing, // Include spacing between boxes
-        qrCodeSize: qrCodeSize / 100, // Convert percentage to decimal
+        boxSpacing, 
+        qrCodeSize: qrCodeSize / 100, 
         orientation,
         fontSize,
         pageSize: pageSize === 'custom' ? { width: customWidth, height: customHeight } : pageSize as any,
         fontFamily,
-        boxesPerRow: boxesPerRow || undefined, // Use undefined for auto-calculation
-        boxesPerColumn: boxesPerColumn || undefined, // Use undefined for auto-calculation
-        countOutsideBox, // Add the count position option
+        boxesPerRow: boxesPerRow || undefined, 
+        boxesPerColumn: boxesPerColumn || undefined, 
+        countOutsideBox,
+        showFooter, // Add footer visibility option
+        customQty: customQty || undefined, // Add custom quantity value
+        footerFontSize, // Add footer font size
       };
       
       await downloadIllustratorFiles(data, fileFormat, options);
@@ -176,6 +184,15 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setBoxesPerRow(null);
     setBoxesPerColumn(null);
     setCountOutsideBox(true); // Match the image's layout
+    // Add footer option resets
+    setShowFooter(true);
+    setCustomQty("");
+    setFooterFontSize(12);
+  };
+
+  // Get actual quantity to display
+  const getDisplayQty = () => {
+    return customQty ? customQty : `${data.length}`;
   };
 
   return (
@@ -269,13 +286,17 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                   })}
                 </div>
                 
+                {showFooter && (
                 <div className="text-center mt-4 text-sm">
-                  <span className="text-red-500 font-bold">Qty. - {data.length} each</span>
-                  <span className="float-right text-green-600 font-bold">
+                  <span className="text-red-500 font-bold" style={{fontSize: `${footerFontSize}px`}}>
+                    Qty. - {getDisplayQty()} each
+                  </span>
+                  <span className="float-right text-green-600 font-bold" style={{fontSize: `${footerFontSize}px`}}>
                     Serial Number+QR code<br />
                     Sticker Size - {boxWidth} x {boxHeight}mm
                   </span>
                 </div>
+                )}
               </div>
             </div>
           )}
@@ -416,6 +437,60 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                       When enabled, the count number will be placed outside the box on the left (recommended)
                     </p>
                   </div>
+                </div>
+
+                {/* Footer Settings (NEW) */}
+                <div className="space-y-3 border-t pt-3">
+                  <h3 className="text-sm font-medium">Footer Settings</h3>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="show-footer"
+                        checked={showFooter}
+                        onCheckedChange={(checked) => setShowFooter(checked as boolean)}
+                      />
+                      <Label htmlFor="show-footer" className="font-medium">
+                        Show Footer Information
+                      </Label>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Enable/disable the footer with quantity and sticker information
+                    </p>
+                  </div>
+                  
+                  {showFooter && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4 mt-2">
+                        <div className="space-y-1">
+                          <Label htmlFor="custom-qty" className="text-xs">Custom Quantity Text</Label>
+                          <Input
+                            id="custom-qty"
+                            type="text"
+                            placeholder={`${data.length}`}
+                            value={customQty}
+                            onChange={(e) => setCustomQty(e.target.value)}
+                          />
+                          <p className="text-xs text-gray-500">
+                            Leave blank to use actual count ({data.length})
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <Label>Footer Font Size: {footerFontSize}pt</Label>
+                          </div>
+                          <Slider
+                            value={[footerFontSize]}
+                            min={8}
+                            max={16}
+                            step={1}
+                            onValueChange={(value) => setFooterFontSize(value[0])}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* QR Code Settings */}

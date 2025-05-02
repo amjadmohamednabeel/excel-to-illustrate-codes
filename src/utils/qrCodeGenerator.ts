@@ -19,6 +19,9 @@ export interface GenerationOptions {
   boxesPerColumn?: number; // optional manual override for boxes per column
   countOutsideBox?: boolean; // whether to place count number outside the box
   boxSpacing?: number; // spacing between boxes in mm
+  showFooter?: boolean; // whether to show the footer (NEW)
+  customQty?: string; // custom quantity text (NEW)
+  footerFontSize?: number; // footer font size (NEW)
 }
 
 // Default options
@@ -32,6 +35,8 @@ const defaultOptions: GenerationOptions = {
   fontFamily: 'helvetica-bold', // Helvetica Bold font
   countOutsideBox: true, // Default count outside box
   boxSpacing: 10, // Default 10mm spacing between boxes
+  showFooter: true, // Default show footer
+  footerFontSize: 12, // Default footer font size
 };
 
 // Gets page dimensions in mm based on the page size
@@ -202,19 +207,25 @@ export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<Gen
     `;
   });
   
-  // Add footer information at the bottom like in the image
-  svgContent += `
-    <text x="20" y="${svgHeight - 20}" font-family="${defaultOptions.fontFamily}" font-size="14" fill="red" text-anchor="start">
-      Qty. - ${data.length} each
-    </text>
+  // Only add footer if showFooter is true
+  if (opts.showFooter !== false) {
+    const footerSize = opts.footerFontSize || defaultOptions.footerFontSize;
+    const qtyText = opts.customQty || `${data.length}`;
     
-    <text x="${svgWidth - 20}" y="${svgHeight - 30}" font-family="${defaultOptions.fontFamily}" font-size="14" fill="#00AA50" text-anchor="end">
-      Serial Number+QR code
-    </text>
-    <text x="${svgWidth - 20}" y="${svgHeight - 10}" font-family="${defaultOptions.fontFamily}" font-size="14" fill="#00AA50" text-anchor="end">
-      Sticker Size - ${opts.boxWidth} x ${opts.boxHeight}mm
-    </text>
-  `;
+    // Add footer information at the bottom
+    svgContent += `
+      <text x="20" y="${svgHeight - 20}" font-family="${defaultOptions.fontFamily}" font-size="${footerSize}" fill="red" text-anchor="start">
+        Qty. - ${qtyText} each
+      </text>
+      
+      <text x="${svgWidth - 20}" y="${svgHeight - 30}" font-family="${defaultOptions.fontFamily}" font-size="${footerSize}" fill="#00AA50" text-anchor="end">
+        Serial Number+QR code
+      </text>
+      <text x="${svgWidth - 20}" y="${svgHeight - 10}" font-family="${defaultOptions.fontFamily}" font-size="${footerSize}" fill="#00AA50" text-anchor="end">
+        Sticker Size - ${opts.boxWidth} x ${opts.boxHeight}mm
+      </text>
+    `;
+  }
   
   svgContent += `</svg>`;
   return svgContent;
@@ -334,23 +345,28 @@ GR
 `;
   });
 
-  // Add footer information like in the image
-  epsContent += `
+  // Add footer information only if showFooter is true
+  if (opts.showFooter !== false) {
+    const footerSize = opts.footerFontSize || defaultOptions.footerFontSize;
+    const qtyText = opts.customQty || `${data.length}`;
+    
+    epsContent += `
 % Footer information
 1.0 0.0 0.0 setrgbcolor % Red text
-/${boldFontName} 14 SF
+/${boldFontName} ${footerSize} SF
 20 20 M
-(Qty. - ${data.length} each) SH
+(Qty. - ${qtyText} each) SH
 
 0.0 0.7 0.3 setrgbcolor % Green text
-/${boldFontName} 14 SF
+/${boldFontName} ${footerSize} SF
 ${pageWidth - 20} 40 M
 (Serial Number+QR code) dup stringwidth pop neg 0 rmoveto SH
 ${pageWidth - 20} 20 M
 (Sticker Size - ${opts.boxWidth} x ${opts.boxHeight}mm) dup stringwidth pop neg 0 rmoveto SH
+`;
+  }
 
-%%EOF`;
-
+  epsContent += `\n%%EOF`;
   return epsContent;
 };
 
@@ -516,20 +532,25 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
     await Promise.all(promises);
   }
   
-  // Add footer information like in the image
-  for (let i = 0; i < numPages; i++) {
-    pdf.setPage(i + 1);
+  // Only add footer information if showFooter is true
+  if (opts.showFooter !== false) {
+    const footerSize = opts.footerFontSize || defaultOptions.footerFontSize;
+    const qtyText = opts.customQty || `${data.length}`;
     
-    // Add "Qty. - X each" in red on the bottom left
-    pdf.setFontSize(12);
-    pdf.setTextColor(255, 0, 0);
-    pdf.text(`Qty. - ${data.length} each`, 20, pageDims.height - 10);
-    
-    // Add "Serial Number+QR code" and "Sticker Size" in green on the bottom right
-    pdf.setTextColor(0, 170, 80); // Green color
-    pdf.setFont(font, 'bold');
-    pdf.text("Serial Number+QR code", pageDims.width - 20, pageDims.height - 20, { align: 'right' });
-    pdf.text(`Sticker Size - ${opts.boxWidth} x ${opts.boxHeight}mm`, pageDims.width - 20, pageDims.height - 10, { align: 'right' });
+    for (let i = 0; i < numPages; i++) {
+      pdf.setPage(i + 1);
+      
+      // Add "Qty. - X each" in red on the bottom left
+      pdf.setFontSize(footerSize);
+      pdf.setTextColor(255, 0, 0);
+      pdf.text(`Qty. - ${qtyText} each`, 20, pageDims.height - 10);
+      
+      // Add "Serial Number+QR code" and "Sticker Size" in green on the bottom right
+      pdf.setTextColor(0, 170, 80); // Green color
+      pdf.setFont(font, 'bold');
+      pdf.text("Serial Number+QR code", pageDims.width - 20, pageDims.height - 20, { align: 'right' });
+      pdf.text(`Sticker Size - ${opts.boxWidth} x ${opts.boxHeight}mm`, pageDims.width - 20, pageDims.height - 10, { align: 'right' });
+    }
   }
   
   return pdf.output('blob');
