@@ -50,7 +50,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
-  const [fileFormat, setFileFormat] = useState<'svg' | 'eps' | 'pdf'>('pdf');
+  const [fileFormat, setFileFormat] = useState<'eps' | 'pdf'>('pdf');
   const [previewPage, setPreviewPage] = useState(0);
   const [activeTab, setActiveTab] = useState('layout');
   
@@ -806,12 +806,14 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                         presets={colorPresets.qrCode}
                       />
                       
-                      <ColorPicker
-                        label="QR Code Background"
-                        value={qrCodeBgColor}
-                        onChange={setQrCodeBgColor}
-                        presets={['#FFFFFF', '#F1F1F1', '#FFDEE2', '#E5DEFF', '#D3E4FD', '#F2FCE2']}
-                      />
+                      {!qrCodeTransparentBg && (
+                        <ColorPicker
+                          label="QR Code Background"
+                          value={qrCodeBgColor}
+                          onChange={setQrCodeBgColor}
+                          presets={['#FFFFFF', '#F1F1F1', '#FFDEE2', '#E5DEFF', '#D3E4FD', '#F2FCE2']}
+                        />
+                      )}
                     </div>
                   </div>
                   
@@ -857,42 +859,11 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
             <h3 className="text-sm font-medium mb-2">Choose File Format:</h3>
             <RadioGroup
               value={fileFormat}
-              onValueChange={(value) => setFileFormat(value as 'svg' | 'eps' | 'pdf')}
+              onValueChange={(value) => setFileFormat(value as 'eps' | 'pdf')}
               className="flex space-x-4"
             >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="svg" id="svg" />
-                <Label htmlFor="svg">SVG Format</Label>
-              </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="eps" id="eps" />
                 <Label htmlFor="eps">EPS Format</Label>
               </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="pdf" id="pdf" />
-                <Label htmlFor="pdf">PDF Format</Label>
-              </div>
-            </RadioGroup>
-          </div>
-          
-          <Button 
-            onClick={handleGenerate} 
-            disabled={isGenerating || data.length === 0}
-            className="w-full"
-          >
-            {isGenerating ? (
-              "Generating..."
-            ) : (
-              <>
-                <Download className="mr-2 h-4 w-4" />
-                Generate QR Codes in {fileFormat.toUpperCase()} Format
-              </>
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-export default QRCodeGenerator;
+              <div className="flex items
