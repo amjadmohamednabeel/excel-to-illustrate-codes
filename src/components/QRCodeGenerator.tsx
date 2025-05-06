@@ -64,7 +64,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [pageSize, setPageSize] = useState<string>('a4'); // Default page size
   const [customWidth, setCustomWidth] = useState(210); // Default custom width in mm
   const [customHeight, setCustomHeight] = useState(297); // Default custom height in mm
-  const [fontFamily, setFontFamily] = useState('helvetica-bold'); // Default font
+  const [fontFamily, setFontFamily] = useState('denso-bold'); // Default font
   const [boxesPerRow, setBoxesPerRow] = useState<number | null>(null); // Auto-calculate by default
   const [boxesPerColumn, setBoxesPerColumn] = useState<number | null>(null); // Auto-calculate by default
   const [boxesPerPage, setBoxesPerPage] = useState<number>(25);
@@ -85,7 +85,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [footerInfoColor, setFooterInfoColor] = useState('#00AA50'); // Green info text in footer
 
   // New state variables for QR code customization
-  const [qrCodeTransparentBg, setQrCodeTransparentBg] = useState(false);
+  const [qrCodeTransparentBg, setQrCodeTransparentBg] = useState(true); // Set default to true
   const [useCustomQRDimensions, setUseCustomQRDimensions] = useState(false);
   const [qrCodeWidth, setQrCodeWidth] = useState(18); // Default 18mm width
   const [qrCodeHeight, setQrCodeHeight] = useState(18); // Default 18mm height
@@ -221,7 +221,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setPageSize('a4');
     setCustomWidth(210);
     setCustomHeight(297);
-    setFontFamily('helvetica-bold');
+    setFontFamily('denso-bold');
     setBoxesPerRow(null);
     setBoxesPerColumn(null);
     setCountOutsideBox(true);
@@ -237,7 +237,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setFooterQtyColor('#FF0000');
     setFooterInfoColor('#00AA50');
     // Reset new options
-    setQrCodeTransparentBg(false);
+    setQrCodeTransparentBg(true); // Keep default as true
     setUseCustomQRDimensions(false);
     setQrCodeWidth(18);
     setQrCodeHeight(18);
@@ -387,7 +387,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                               value={qrText} 
                               size={40} 
                               fgColor={qrCodeColor}
-                              bgColor={qrCodeBgColor}
+                              bgColor={qrCodeTransparentBg ? "transparent" : qrCodeBgColor}
                             />
                           </div>
                         </div>
@@ -866,4 +866,28 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                 <RadioGroupItem value="eps" id="eps" />
                 <Label htmlFor="eps">EPS Format</Label>
               </div>
-              <div className="flex items
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="pdf" id="pdf" />
+                <Label htmlFor="pdf">PDF Format</Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          <Button 
+            onClick={handleGenerate} 
+            disabled={isGenerating || data.length === 0}
+            className="w-full"
+          >
+            {isGenerating ? 
+              "Generating..." : 
+              `Generate QR Codes (${data.length} items)`
+            }
+            <Download className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default QRCodeGenerator;

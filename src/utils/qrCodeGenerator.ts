@@ -1,3 +1,4 @@
+
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
@@ -692,4 +693,48 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
 };
 
 // Generate the illustrator-ready file in the requested format (EPS or PDF)
-export const generateIllustratorFile = async (data: ExcelRow[], format
+export const generateIllustratorFile = async (data: ExcelRow[], format: 'eps' | 'pdf', options: Partial<GenerationOptions> = {}): Promise<Blob> => {
+  if (format === 'eps') {
+    const epsContent = generateEPSLayout(data, options);
+    return new Blob([epsContent], { type: 'application/postscript' });
+  } else {
+    return generatePDF(data, options);
+  }
+};
+
+// Main function to download the output files
+export const downloadIllustratorFiles = async (data: ExcelRow[], format: 'eps' | 'pdf', options: Partial<GenerationOptions> = {}): Promise<void> => {
+  // Generate the file in the selected format
+  const fileBlob = await generateIllustratorFile(data, format, options);
+  
+  // Determine filename with correct extension
+  const extension = format.toLowerCase();
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `QRCodes_${data.length}_items_${timestamp}.${extension}`;
+  
+  // Use FileSaver library to trigger download
+  saveAs(fileBlob, filename);
+};
+
+// Function for packaging all sizes and formats into a single ZIP file
+export const generateAllFormatsZip = async (data: ExcelRow[], options: Partial<GenerationOptions> = {}): Promise<void> => {
+  const zip = new JSZip();
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  
+  try {
+    // Generate EPS version
+    const epsBlob = await generateIllustratorFile(data, 'eps', options);
+    zip.file(`QRCodes_${data.length}_items.eps`, epsBlob);
+    
+    // Generate PDF version
+    const pdfBlob = await generateIllustratorFile(data, 'pdf', options);
+    zip.file(`QRCodes_${data.length}_items.pdf`, pdfBlob);
+    
+    // Generate and save ZIP file
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    saveAs(zipBlob, `QRCodes_All_Formats_${timestamp}.zip`);
+  } catch (error) {
+    console.error('Error generating ZIP with multiple formats:', error);
+    throw error;
+  }
+};
