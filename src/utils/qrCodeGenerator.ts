@@ -1,3 +1,4 @@
+
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
@@ -693,3 +694,28 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
 
 // Generate the illustrator-ready file in the requested format (SVG, EPS, or PDF)
 export const generateIllustratorFile = async (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf', options: Partial<GenerationOptions> = {}): Promise<Blob> => {
+  const opts = { ...defaultOptions, ...options };
+  
+  switch(format) {
+    case 'svg':
+      const svgContent = generateIllustratorLayout(data, opts);
+      return new Blob([svgContent], { type: 'image/svg+xml' });
+    case 'eps':
+      const epsContent = generateEPSLayout(data, opts);
+      return new Blob([epsContent], { type: 'application/postscript' });
+    case 'pdf':
+      return await generatePDF(data, opts);
+    default:
+      throw new Error(`Unsupported format: ${format}`);
+  }
+};
+
+// Main function to generate and download files
+export const downloadIllustratorFiles = async (
+  data: ExcelRow[], 
+  format: 'svg' | 'eps' | 'pdf' = 'pdf',
+  options: Partial<GenerationOptions> = {}
+): Promise<void> => {
+  const blob = await generateIllustratorFile(data, format, options);
+  saveAs(blob, `qr-codes-${new Date().toISOString().split('T')[0]}.${format}`);
+};

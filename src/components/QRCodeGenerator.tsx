@@ -864,4 +864,35 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                 <RadioGroupItem value="svg" id="svg" />
                 <Label htmlFor="svg">SVG Format</Label>
               </div>
-              <div className="flex items-center space-
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="eps" id="eps" />
+                <Label htmlFor="eps">EPS Format</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="pdf" id="pdf" />
+                <Label htmlFor="pdf">PDF Format</Label>
+              </div>
+            </RadioGroup>
+          </div>
+          
+          <Button 
+            onClick={handleGenerate} 
+            disabled={isGenerating || data.length === 0}
+            className="w-full"
+          >
+            {isGenerating ? (
+              "Generating..."
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Generate QR Codes in {fileFormat.toUpperCase()} Format
+              </>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default QRCodeGenerator;
