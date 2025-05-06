@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +25,8 @@ const fontOptions = [
   { value: 'helvetica-bold', label: 'Helvetica Bold' },
   { value: 'times', label: 'Times Roman' },
   { value: 'courier', label: 'Courier' },
+  { value: 'denso', label: 'OCR-B (Denso)' },
+  { value: 'denso-bold', label: 'OCR-B Bold (Denso Bold)' },
 ];
 
 const pageSizes = [
@@ -82,6 +83,12 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [qrCodeBgColor, setQrCodeBgColor] = useState('#FFFFFF'); // White QR code background
   const [footerQtyColor, setFooterQtyColor] = useState('#FF0000'); // Red quantity text in footer
   const [footerInfoColor, setFooterInfoColor] = useState('#00AA50'); // Green info text in footer
+
+  // New state variables for QR code customization
+  const [qrCodeTransparentBg, setQrCodeTransparentBg] = useState(false);
+  const [useCustomQRDimensions, setUseCustomQRDimensions] = useState(false);
+  const [qrCodeWidth, setQrCodeWidth] = useState(18); // Default 18mm width
+  const [qrCodeHeight, setQrCodeHeight] = useState(18); // Default 18mm height
 
   // Calculate boxes per page based on current settings
   React.useEffect(() => {
@@ -148,7 +155,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
         showFooter,
         customQty: customQty || undefined,
         footerFontSize,
-        // Add color options
+        // Color options
         boxBorderColor,
         countColor,
         serialColor,
@@ -156,6 +163,10 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
         qrCodeBgColor,
         footerQtyColor,
         footerInfoColor,
+        // New options
+        qrCodeTransparentBg,
+        qrCodeWidth: useCustomQRDimensions ? qrCodeWidth : undefined,
+        qrCodeHeight: useCustomQRDimensions ? qrCodeHeight : undefined,
       };
       
       await downloadIllustratorFiles(data, fileFormat, options);
@@ -225,6 +236,11 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setQrCodeBgColor('#FFFFFF');
     setFooterQtyColor('#FF0000');
     setFooterInfoColor('#00AA50');
+    // Reset new options
+    setQrCodeTransparentBg(false);
+    setUseCustomQRDimensions(false);
+    setQrCodeWidth(18);
+    setQrCodeHeight(18);
   };
 
   // Get actual quantity to display
@@ -283,6 +299,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
         <CardTitle className="text-lg font-medium">Generate QR Codes for Illustrator</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        
         <div className="flex flex-col items-center space-y-2">
           <div className="flex space-x-2 w-full">
             <Button 
@@ -606,23 +623,80 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     )}
                   </div>
 
-                  {/* QR Code Settings */}
+                  {/* QR Code Settings with new options */}
                   <div className="space-y-3">
                     <h3 className="text-sm font-medium">QR Code & Font Settings</h3>
                     
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <Label>QR Code Size: {qrCodeSize}%</Label>
-                        </div>
-                        <Slider
-                          value={[qrCodeSize]}
-                          min={20}
-                          max={90}
-                          step={5}
-                          onValueChange={(value) => setQrCodeSize(value[0])}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="transparent-bg" className="font-medium">
+                          Transparent QR Code Background
+                        </Label>
+                        <Switch
+                          id="transparent-bg"
+                          checked={qrCodeTransparentBg}
+                          onCheckedChange={setQrCodeTransparentBg}
                         />
                       </div>
+                      <p className="text-xs text-gray-500">
+                        Makes QR code background transparent instead of using a background color
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2 border-t pt-3">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="custom-dimensions" className="font-medium">
+                          Use Custom QR Dimensions
+                        </Label>
+                        <Switch
+                          id="custom-dimensions"
+                          checked={useCustomQRDimensions}
+                          onCheckedChange={setUseCustomQRDimensions}
+                        />
+                      </div>
+                      
+                      {useCustomQRDimensions ? (
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                          <div className="space-y-1">
+                            <Label htmlFor="qr-width" className="text-xs">Width (mm)</Label>
+                            <Input
+                              id="qr-width"
+                              type="number"
+                              min="5"
+                              max={boxWidth * 0.9}
+                              value={qrCodeWidth}
+                              onChange={(e) => setQrCodeWidth(Number(e.target.value))}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="qr-height" className="text-xs">Height (mm)</Label>
+                            <Input
+                              id="qr-height"
+                              type="number"
+                              min="5"
+                              max={boxHeight * 0.9}
+                              value={qrCodeHeight}
+                              onChange={(e) => setQrCodeHeight(Number(e.target.value))}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <Label>QR Code Size: {qrCodeSize}%</Label>
+                          </div>
+                          <Slider
+                            value={[qrCodeSize]}
+                            min={20}
+                            max={90}
+                            step={5}
+                            onValueChange={(value) => setQrCodeSize(value[0])}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <Label>Font Size: {fontSize}pt</Label>
@@ -635,22 +709,22 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                           onValueChange={(value) => setFontSize(value[0])}
                         />
                       </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Font</Label>
-                      <Select value={fontFamily} onValueChange={setFontFamily}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select font" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {fontOptions.map((font) => (
-                            <SelectItem key={font.value} value={font.value}>
-                              {font.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      
+                      <div className="space-y-2">
+                        <Label>Font</Label>
+                        <Select value={fontFamily} onValueChange={setFontFamily}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select font" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {fontOptions.map((font) => (
+                              <SelectItem key={font.value} value={font.value}>
+                                {font.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
                   
@@ -790,77 +864,4 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                 <RadioGroupItem value="svg" id="svg" />
                 <Label htmlFor="svg">SVG Format</Label>
               </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="eps" id="eps" />
-                <Label htmlFor="eps">EPS Format</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="pdf" id="pdf" />
-                <Label htmlFor="pdf">PDF Format</Label>
-              </div>
-            </RadioGroup>
-          </div>
-          
-          <div className="bg-blue-50 p-3 rounded text-sm">
-            <p className="font-medium text-blue-700">Format Details:</p>
-            <ul className="list-disc list-inside text-blue-600 mt-1 space-y-1">
-              {fileFormat === 'eps' && (
-                <>
-                  <li>EPS files with {boxWidth}mm × {boxHeight}mm boxes and {boxSpacing}mm spacing</li>
-                  <li>Count numbers displayed outside each box in selected color</li>
-                  <li>QR codes positioned on the right side</li>
-                  <li>Serial numbers centered on the left side</li>
-                </>
-              )}
-              {fileFormat === 'pdf' && (
-                <>
-                  <li>{pageSize === 'custom' ? 'Custom size' : pageSizes.find(p => p.value === pageSize)?.label} PDF in {orientation} orientation</li>
-                  <li>Up to {boxesPerPage} QR codes per page with {boxSpacing}mm spacing</li>
-                  <li>Count numbers displayed outside each box in selected color</li>
-                  <li>Serial numbers centered in each box's left half</li>
-                  <li>{boxWidth}mm × {boxHeight}mm sticker size</li>
-                </>
-              )}
-              {fileFormat === 'svg' && (
-                <>
-                  <li>SVG files with count numbers outside each box</li>
-                  <li>All boxes separated with {boxSpacing}mm spacing</li>
-                  <li>Serial numbers and QR codes properly centered</li>
-                  <li>{boxWidth}mm × {boxHeight}mm sticker size with customizable border</li>
-                </>
-              )}
-            </ul>
-          </div>
-          
-          <p className="text-sm text-gray-500 mt-2">
-            {fileFormat === 'pdf' ? 
-              `You will receive a single PDF file with all ${data.length} QR codes in a layout${data.length > boxesPerPage ? ` across ${totalPages} pages` : ''}.` : 
-              'You will receive a ZIP file containing:'}
-          </p>
-          {fileFormat !== 'pdf' && (
-            <ul className="list-disc list-inside text-sm text-gray-500 ml-4">
-              <li>Individual QR code {fileFormat.toUpperCase()} files for each row</li>
-              <li>A complete layout in {fileFormat.toUpperCase()} format with all QR codes arranged</li>
-            </ul>
-          )}
-        </div>
-      </CardContent>
-      <CardFooter>
-        <Button
-          onClick={handleGenerate}
-          disabled={isGenerating || data.length === 0}
-          className="w-full"
-        >
-          {isGenerating ? "Generating..." : (
-            <>
-              <Download className="w-4 h-4 mr-2" />
-              Download QR Codes in {fileFormat.toUpperCase()} Format
-            </>
-          )}
-        </Button>
-      </CardFooter>
-    </Card>
-  );
-};
-
-export default QRCodeGenerator;
+              <div className="flex items-center space-

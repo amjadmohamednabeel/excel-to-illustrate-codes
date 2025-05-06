@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ExcelRow } from "@/utils/excelParser";
 import ExcelUploader from "@/components/ExcelUploader";
 import PreviewTable from "@/components/PreviewTable";
@@ -11,6 +11,32 @@ const Index = () => {
   const handleDataLoaded = (data: ExcelRow[]) => {
     setExcelData(data);
   };
+
+  // Add OCR-B (Denso) font for QR code generation
+  useEffect(() => {
+    // Add OCR-B (Denso) font CSS
+    const style = document.createElement('style');
+    style.textContent = `
+      @font-face {
+        font-family: 'OCR-B';
+        src: url('https://fonts.cdnfonts.com/css/libre-barcode-39') format('woff');
+        font-weight: normal;
+        font-style: normal;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // Add font link as backup
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=PT+Mono&display=swap'; // Fallback monospaced font
+    document.head.appendChild(link);
+    
+    return () => {
+      document.head.removeChild(style);
+      document.head.removeChild(link);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -62,7 +88,9 @@ const Index = () => {
             <ol className="list-decimal list-inside space-y-2 text-gray-600">
               <li>Upload an Excel file with columns for Count, Unit Serial Number, and QR Code Text</li>
               <li>Preview the data to ensure it's been correctly parsed</li>
-              <li>Customize your QR code layout, size, and appearance</li>
+              <li>Customize your QR code layout, size, appearance, and colors</li>
+              <li>Choose from multiple font options including OCR-B (Denso)</li>
+              <li>Set transparent backgrounds and custom dimensions for QR codes</li>
               <li>Choose your preferred file format (PDF, SVG, or EPS)</li>
               <li>Generate and download your files for use in Adobe Illustrator or other design software</li>
             </ol>

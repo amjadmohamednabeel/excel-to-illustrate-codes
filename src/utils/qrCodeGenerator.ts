@@ -22,7 +22,7 @@ export interface GenerationOptions {
   showFooter?: boolean; // whether to show the footer
   customQty?: string; // custom quantity text
   footerFontSize?: number; // footer font size
-  // New color options
+  // Color options
   boxBorderColor?: string; // color for box border (default: #FF0000 - red)
   countColor?: string; // color for count numbers (default: #FF0000 - red)
   serialColor?: string; // color for serial numbers (default: #000000 - black)
@@ -30,6 +30,10 @@ export interface GenerationOptions {
   qrCodeBgColor?: string; // background color for QR code (default: #FFFFFF - white)
   footerQtyColor?: string; // color for "Qty. - X each" text (default: #FF0000 - red)
   footerInfoColor?: string; // color for sticker info text (default: #00AA50 - green)
+  // New options
+  qrCodeTransparentBg?: boolean; // whether to use transparent background for QR code
+  qrCodeWidth?: number; // custom width for QR code in mm (overrides qrCodeSize)
+  qrCodeHeight?: number; // custom height for QR code in mm (overrides qrCodeSize)
 }
 
 // Default options
@@ -53,6 +57,10 @@ const defaultOptions: GenerationOptions = {
   qrCodeBgColor: '#FFFFFF', // White QR code background
   footerQtyColor: '#FF0000', // Red quantity text in footer
   footerInfoColor: '#00AA50', // Green info text in footer
+  // Defaults for new options
+  qrCodeTransparentBg: false, // Default to non-transparent background
+  qrCodeWidth: undefined, // Default to using qrCodeSize
+  qrCodeHeight: undefined, // Default to using qrCodeSize
 };
 
 // Gets page dimensions in mm based on the page size
@@ -89,9 +97,13 @@ const getPageDimensions = (pageSize: PageSize, orientation: 'portrait' | 'landsc
 export const generateQRCodeSVG = (text: string, index: number, options: Partial<GenerationOptions> = {}): string => {
   const opts = { ...defaultOptions, ...options };
   const size = 100;
+  
+  // Apply transparent background if requested
+  const bgFill = opts.qrCodeTransparentBg ? 'transparent' : opts.qrCodeBgColor;
+  
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-      <rect width="100%" height="100%" fill="${opts.qrCodeBgColor}" />
+      <rect width="100%" height="100%" fill="${bgFill}" />
       <rect x="10%" y="10%" width="80%" height="80%" fill="${opts.qrCodeColor}" />
       <text x="10%" y="20%" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="10" fill="${opts.countColor}" text-anchor="start">
         ${index}.
@@ -111,14 +123,19 @@ export const generateQRCodeEPS = (text: string, index: number, options: Partial<
   const size = 300; // Increased size for better visibility
   
   const fontName = opts.fontFamily.includes('bold') 
-    ? `/Helvetica-Bold findfont def` 
-    : `/${opts.fontFamily.charAt(0).toUpperCase() + opts.fontFamily.slice(1)} findfont def`;
+    ? `/${opts.fontFamily === 'denso-bold' ? 'OCR-B-Bold' : 'Helvetica-Bold'} findfont def` 
+    : `/${opts.fontFamily === 'denso' ? 'OCR-B' : (opts.fontFamily.charAt(0).toUpperCase() + opts.fontFamily.slice(1))} findfont def`;
   
   // Convert hex colors to RGB for EPS
   const countColorRGB = hexToRGB(opts.countColor || defaultOptions.countColor!);
   const serialColorRGB = hexToRGB(opts.serialColor || defaultOptions.serialColor!);
   const qrColorRGB = hexToRGB(opts.qrCodeColor || defaultOptions.qrCodeColor!);
   const qrBgColorRGB = hexToRGB(opts.qrCodeBgColor || defaultOptions.qrCodeBgColor!);
+  
+  // Handle transparent background for EPS
+  const bgColorCommand = opts.qrCodeTransparentBg ? 
+    '% No background fill (transparent)' : 
+    `${qrBgColorRGB} SRGB\n${size * 0.1} ${size * 0.1} ${size * 0.8} ${size * 0.8} RF`;
   
   let eps = `%!PS-Adobe-3.0 EPSF-3.0
 %%BoundingBox: 0 0 ${size} ${size}
@@ -148,9 +165,8 @@ export const generateQRCodeEPS = (text: string, index: number, options: Partial<
 % Font setup - Using selected font
 /QR-Font ${fontName}
 
-% Background
-${qrBgColorRGB} SRGB
-0 0 ${size} ${size} RF
+% Background (may be transparent)
+${bgColorCommand}
 
 % QR code placeholder
 ${qrColorRGB} SRGB
@@ -191,13 +207,28 @@ const hexToRGB = (hex: string): string => {
 // Creates an illustrator-ready SVG with multiple QR codes in a grid layout
 export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<GenerationOptions> = {}): string => {
   const opts = { ...defaultOptions, ...options };
-  const qrSize = opts.boxHeight * opts.qrCodeSize;
+  const boxHeight = opts.boxHeight;
+  
+  // Calculate QR code dimensions
+  let qrWidth, qrHeight;
+  if (opts.qrCodeWidth && opts.qrCodeHeight) {
+    // Use custom dimensions if specified
+    qrWidth = opts.qrCodeWidth;
+    qrHeight = opts.qrCodeHeight;
+  } else {
+    // Otherwise use the size ratio
+    qrWidth = qrHeight = boxHeight * opts.qrCodeSize;
+  }
+  
   const padding = opts.boxSpacing || 10; // Use boxSpacing for padding
   const boxesPerRow = opts.boxesPerRow || 5; // Default 5 boxes per row
   const rows = Math.ceil(data.length / boxesPerRow);
   
   const svgWidth = (opts.boxWidth + padding) * boxesPerRow + padding;
   const svgHeight = (opts.boxHeight + padding) * rows + padding;
+  
+  // Apply transparent background if requested
+  const qrBgFill = opts.qrCodeTransparentBg ? 'transparent' : opts.qrCodeBgColor;
   
   let svgContent = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
@@ -224,7 +255,7 @@ export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<Gen
     // If count is outside the box, position it to the left of the box in specified color
     if (opts.countOutsideBox) {
       svgContent += `
-        <text x="${-5}" y="${opts.boxHeight / 2}" font-family="${opts.fontFamily}" font-size="${opts.fontSize * 1.3}" fill="${opts.countColor}" text-anchor="end" dominant-baseline="middle">
+        <text x="${-5}" y="${opts.boxHeight / 2}" font-family="${opts.fontFamily.includes('denso') ? 'OCR-B, monospace' : opts.fontFamily}" font-size="${opts.fontSize * 1.3}" fill="${opts.countColor}" text-anchor="end" dominant-baseline="middle">
           ${count}.
         </text>
       `;
@@ -232,14 +263,14 @@ export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<Gen
     
     // Serial number centered in the left half of the box with specified color
     svgContent += `
-      <text x="${opts.boxWidth / 4}" y="${opts.boxHeight/2}" font-family="${opts.fontFamily}" font-size="${opts.fontSize}" font-weight="bold" text-anchor="middle" dominant-baseline="middle" fill="${opts.serialColor}">
+      <text x="${opts.boxWidth / 4}" y="${opts.boxHeight/2}" font-family="${opts.fontFamily.includes('denso') ? 'OCR-B, monospace' : opts.fontFamily}" font-size="${opts.fontSize}" font-weight="bold" text-anchor="middle" dominant-baseline="middle" fill="${opts.serialColor}">
         ${serial}
       </text>
     `;
     
-    // QR code positioned on the right side, centered vertically
+    // QR code positioned on the right side, centered vertically with possibly custom dimensions
     svgContent += `
-      <image x="${opts.boxWidth * 0.6}" y="${(opts.boxHeight - qrSize) / 2}" width="${qrSize}" height="${qrSize}" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" />
+      <image x="${opts.boxWidth * 0.6}" y="${(opts.boxHeight - qrHeight) / 2}" width="${qrWidth}" height="${qrHeight}" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" />
       </g>
     `;
   });
@@ -281,11 +312,28 @@ export const generateEPSLayout = (data: ExcelRow[], options: Partial<GenerationO
   const pageWidth = (boxWidth + padding) * boxesPerRow + padding;
   const pageHeight = (boxHeight + padding) * rows + padding;
   
-  const qrSize = boxHeight * opts.qrCodeSize;
+  // Calculate QR code dimensions
+  let qrWidth, qrHeight;
+  if (opts.qrCodeWidth && opts.qrCodeHeight) {
+    // Use custom dimensions if specified
+    qrWidth = opts.qrCodeWidth * 2.83465; // Convert to points
+    qrHeight = opts.qrCodeHeight * 2.83465;
+  } else {
+    // Otherwise use the size ratio
+    qrWidth = qrHeight = boxHeight * opts.qrCodeSize;
+  }
   
   // Font mapping
   let fontName, boldFontName;
   switch(opts.fontFamily) {
+    case 'denso':
+      fontName = 'OCR-B';
+      boldFontName = 'OCR-B-Bold';
+      break;
+    case 'denso-bold':
+      fontName = 'OCR-B';
+      boldFontName = 'OCR-B-Bold';
+      break;
     case 'times':
       fontName = 'Times-Roman';
       boldFontName = 'Times-Bold';
@@ -375,7 +423,7 @@ GS
   
   % QR code on right side (centered vertically) with custom color
   ${qrColorRGB} setrgbcolor
-  ${qrX} ${y + (boxHeight - qrSize) / 2} ${qrSize} ${qrSize} RF
+  ${qrX} ${y + (boxHeight - qrHeight) / 2} ${qrWidth} ${qrHeight} RF
   
   % Count number outside the box with custom color
   ${countColorRGB} setrgbcolor
@@ -495,7 +543,9 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   
   // Function to determine the font to use
   const getFont = () => {
-    if (opts.fontFamily.includes('times')) {
+    if (opts.fontFamily.includes('denso')) {
+      return 'courier'; // Use courier as a monospaced fallback for Denso font in PDF
+    } else if (opts.fontFamily.includes('times')) {
       return 'times';
     } else if (opts.fontFamily.includes('courier')) {
       return 'courier';
@@ -546,7 +596,18 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
       const qrText = row['QR Code Text'] || row.qrCodeText || serial;
       const count = row['Count'] || row.count || (i + 1).toString();
       
-      const promise = generateQRCodeDataURI(qrText, opts).then(dataUrl => {
+      // Generate QR code with potentially transparent background
+      const qrOptions = {
+        errorCorrectionLevel: 'M',
+        margin: 1,
+        width: 200,
+        color: {
+          dark: opts.qrCodeColor || defaultOptions.qrCodeColor!,
+          light: opts.qrCodeTransparentBg ? '#0000' : (opts.qrCodeBgColor || defaultOptions.qrCodeBgColor!)
+        }
+      };
+      
+      const promise = QRCode.toDataURL(qrText, qrOptions).then(dataUrl => {
         // Calculate position in the grid
         const localIndex = i - startIndex; // Index relative to current page
         const col = localIndex % layout.boxesPerRow;
@@ -583,13 +644,20 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
         pdf.text(serial, textX, textY, { baseline: 'middle' });
         
         // Calculate QR code size and position (right side of box, centered)
-        const qrSize = opts.boxHeight * opts.qrCodeSize;
+        let qrWidth, qrHeight;
+        if (opts.qrCodeWidth && opts.qrCodeHeight) {
+          qrWidth = opts.qrCodeWidth;
+          qrHeight = opts.qrCodeHeight;
+        } else {
+          qrWidth = qrHeight = opts.boxHeight * opts.qrCodeSize;
+        }
+        
         const qrX = x + (opts.boxWidth * 0.6); // Positioned at 60% of box width
-        const qrY = y + (opts.boxHeight - qrSize) / 2; // Centered vertically
+        const qrY = y + (opts.boxHeight - qrHeight) / 2; // Centered vertically
         
         // Add QR code if we have a data URL
         if (dataUrl) {
-          pdf.addImage(dataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+          pdf.addImage(dataUrl, 'PNG', qrX, qrY, qrWidth, qrHeight);
         }
       });
       
@@ -625,66 +693,3 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
 
 // Generate the illustrator-ready file in the requested format (SVG, EPS, or PDF)
 export const generateIllustratorFile = async (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf', options: Partial<GenerationOptions> = {}): Promise<Blob> => {
-  try {
-    // For PDF format, use the existing generatePDF function
-    if (format === 'pdf') {
-      return await generatePDF(data, options);
-    }
-    
-    // For SVG and EPS formats, create a ZIP with individual files and a complete layout
-    const zip = new JSZip();
-    
-    // Create a folder for individual QR codes
-    const individualFolder = zip.folder('individual-qr-codes');
-    const layoutFolder = zip.folder('complete-layout');
-    
-    // Add individual QR codes
-    data.forEach((row, index) => {
-      const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${index}`;
-      const qrText = row['QR Code Text'] || row.qrCodeText || serial;
-      
-      // Generate the appropriate format
-      let fileContent = '';
-      if (format === 'svg') {
-        fileContent = generateQRCodeSVG(qrText, index + 1, options);
-      } else if (format === 'eps') {
-        fileContent = generateQRCodeEPS(qrText, index + 1, options);
-      }
-      
-      // Add to the zip
-      const fileName = `qr-code-${index + 1}-${serial.replace(/[^a-zA-Z0-9]/g, '_')}.${format}`;
-      individualFolder?.file(fileName, fileContent);
-    });
-    
-    // Add the complete layout file
-    if (format === 'svg') {
-      layoutFolder?.file(`complete-layout.svg`, generateIllustratorLayout(data, options));
-    } else if (format === 'eps') {
-      layoutFolder?.file(`complete-layout.eps`, generateEPSLayout(data, options));
-    }
-    
-    // Generate the ZIP file
-    return await zip.generateAsync({ type: "blob" });
-  } catch (error) {
-    console.error(`Error generating ${format} files:`, error);
-    throw error;
-  }
-};
-
-export const downloadIllustratorFiles = async (data: ExcelRow[], format: 'svg' | 'eps' | 'pdf' = 'svg', options: Partial<GenerationOptions> = {}): Promise<void> => {
-  try {
-    const blob = await generateIllustratorFile(data, format, options);
-    
-    if (format === 'pdf') {
-      // For PDF, save the blob directly
-      saveAs(blob, `qr_codes_layout.pdf`);
-    } else {
-      // For other formats, save as ZIP with all files
-      const extension = format === 'svg' ? 'svg' : 'eps';
-      saveAs(blob, `qr_codes_for_illustrator_${extension}.zip`);
-    }
-  } catch (error) {
-    console.error(`Failed to generate ${format.toUpperCase()} files:`, error);
-    throw error;
-  }
-};
