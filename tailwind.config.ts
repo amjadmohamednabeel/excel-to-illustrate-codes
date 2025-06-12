@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -18,6 +19,10 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				'denso': ['IBM Plex Mono', 'Roboto Mono', 'Courier New', 'monospace'],
+				'denso-bold': ['IBM Plex Mono', 'Roboto Mono', 'Courier New', 'monospace'],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
