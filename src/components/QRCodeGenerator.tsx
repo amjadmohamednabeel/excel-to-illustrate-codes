@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from '@/components/ui/use-toast';
@@ -20,14 +20,41 @@ interface QRCodeGeneratorProps {
   data: ExcelRow[];
 }
 
-const fontOptions = [
-  { value: 'helvetica', label: 'Helvetica' },
-  { value: 'helvetica-bold', label: 'Helvetica Bold' },
-  { value: 'times', label: 'Times Roman' },
-  { value: 'courier', label: 'Courier' },
-  { value: 'denso', label: 'OCR-B (Denso)' },
-  { value: 'denso-bold', label: 'OCR-B Bold (Denso Bold)' },
-];
+// Updated font options to include the actual DENSO fonts from public directory
+const getAvailableFontOptions = () => {
+  const baseFonts = [
+    { value: 'helvetica', label: 'Helvetica' },
+    { value: 'helvetica-bold', label: 'Helvetica Bold' },
+    { value: 'times', label: 'Times Roman' },
+    { value: 'courier', label: 'Courier' },
+    { value: 'denso', label: 'OCR-B (Denso)' },
+    { value: 'denso-bold', label: 'OCR-B Bold (Denso Bold)' },
+  ];
+
+  // Add the actual DENSO fonts from public directory
+  const densoFonts = [
+    { value: 'denso-regular', label: 'DENSO Regular' },
+    { value: 'denso-bold-real', label: 'DENSO Bold' },
+    { value: 'denso-light', label: 'DENSO Light' },
+    { value: 'denso-bold-italic', label: 'DENSO Bold Italic' },
+    { value: 'denso-light-italic', label: 'DENSO Light Italic' },
+  ];
+
+  // Check if custom font was uploaded and add it
+  const customFont = localStorage.getItem('denso-custom-font');
+  if (customFont) {
+    try {
+      const fontInfo = JSON.parse(customFont);
+      if (fontInfo.loaded) {
+        densoFonts.push({ value: 'denso-custom', label: `${fontInfo.originalName} (Custom)` });
+      }
+    } catch (error) {
+      console.error('Error parsing custom font info:', error);
+    }
+  }
+
+  return [...baseFonts, ...densoFonts];
+};
 
 const pageSizes = [
   { value: 'a4', label: 'A4 (210 × 297 mm)' },
@@ -53,63 +80,108 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [fileFormat, setFileFormat] = useState<'eps' | 'pdf'>('pdf');
   const [previewPage, setPreviewPage] = useState(0);
   const [activeTab, setActiveTab] = useState('layout');
+  const [fontOptions, setFontOptions] = useState(getAvailableFontOptions());
   
-  // Layout options
-  const [boxWidth, setBoxWidth] = useState(50); // Default box width in mm
-  const [boxHeight, setBoxHeight] = useState(30); // Default box height in mm
-  const [boxSpacing, setBoxSpacing] = useState(10); // Default spacing between boxes in mm
-  const [qrCodeSize, setQrCodeSize] = useState(60); // Default QR code size percentage (60% of box height)
+  const [boxWidth, setBoxWidth] = useState(50);
+  const [boxHeight, setBoxHeight] = useState(30);
+  const [boxSpacing, setBoxSpacing] = useState(10);
+  const [qrCodeSize, setQrCodeSize] = useState(60);
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
-  const [fontSize, setFontSize] = useState(9); // Default font size
-  const [pageSize, setPageSize] = useState<string>('a4'); // Default page size
-  const [customWidth, setCustomWidth] = useState(210); // Default custom width in mm
-  const [customHeight, setCustomHeight] = useState(297); // Default custom height in mm
-  const [fontFamily, setFontFamily] = useState('denso-bold'); // Default font
-  const [boxesPerRow, setBoxesPerRow] = useState<number | null>(null); // Auto-calculate by default
-  const [boxesPerColumn, setBoxesPerColumn] = useState<number | null>(null); // Auto-calculate by default
+  const [fontSize, setFontSize] = useState(9);
+  const [pageSize, setPageSize] = useState<string>('a4');
+  const [customWidth, setCustomWidth] = useState(210);
+  const [customHeight, setCustomHeight] = useState(297);
+  const [fontFamily, setFontFamily] = useState('denso-regular'); // Default to DENSO Regular
+  const [boxesPerRow, setBoxesPerRow] = useState<number | null>(null);
+  const [boxesPerColumn, setBoxesPerColumn] = useState<number | null>(null);
   const [boxesPerPage, setBoxesPerPage] = useState<number>(25);
-  const [countOutsideBox, setCountOutsideBox] = useState(true); // Default to true as per image
+  const [countOutsideBox, setCountOutsideBox] = useState(true);
   
-  // Footer options
-  const [showFooter, setShowFooter] = useState(true); // Whether to show the footer
-  const [customQty, setCustomQty] = useState<string>(""); // Custom quantity value
-  const [footerFontSize, setFooterFontSize] = useState(12); // Footer font size in pt
+  const [showFooter, setShowFooter] = useState(true);
+  const [customQty, setCustomQty] = useState<string>("");
+  const [footerFontSize, setFooterFontSize] = useState(12);
 
-  // New color options
-  const [boxBorderColor, setBoxBorderColor] = useState('#FF0000'); // Red box border
-  const [countColor, setCountColor] = useState('#FF0000'); // Red count numbers
-  const [serialColor, setSerialColor] = useState('#000000'); // Black serial numbers
-  const [qrCodeColor, setQrCodeColor] = useState('#000000'); // Black QR code
-  const [qrCodeBgColor, setQrCodeBgColor] = useState('#FFFFFF'); // White QR code background
-  const [footerQtyColor, setFooterQtyColor] = useState('#FF0000'); // Red quantity text in footer
-  const [footerInfoColor, setFooterInfoColor] = useState('#00AA50'); // Green info text in footer
+  const [boxBorderColor, setBoxBorderColor] = useState('#FF0000');
+  const [countColor, setCountColor] = useState('#FF0000');
+  const [serialColor, setSerialColor] = useState('#000000');
+  const [qrCodeColor, setQrCodeColor] = useState('#000000');
+  const [qrCodeBgColor, setQrCodeBgColor] = useState('#FFFFFF');
+  const [footerQtyColor, setFooterQtyColor] = useState('#FF0000');
+  const [footerInfoColor, setFooterInfoColor] = useState('#00AA50');
 
-  // New state variables for QR code customization
-  const [qrCodeTransparentBg, setQrCodeTransparentBg] = useState(true); // Set default to true
+  const [qrCodeTransparentBg, setQrCodeTransparentBg] = useState(true);
   const [useCustomQRDimensions, setUseCustomQRDimensions] = useState(false);
-  const [qrCodeWidth, setQrCodeWidth] = useState(18); // Default 18mm width
-  const [qrCodeHeight, setQrCodeHeight] = useState(18); // Default 18mm height
+  const [qrCodeWidth, setQrCodeWidth] = useState(18);
+  const [qrCodeHeight, setQrCodeHeight] = useState(18);
 
-  // Calculate boxes per page based on current settings
+  useEffect(() => {
+    const loadDensoFonts = async () => {
+      const fontsToLoad = [
+        { name: 'DENSO-Regular', path: '/denso fonts/DENSO-Regular.otf', cssClass: 'denso-regular' },
+        { name: 'DENSO-Bold', path: '/denso fonts/DENSO-Bold.otf', cssClass: 'denso-bold-real' },
+        { name: 'Denso Light', path: '/denso fonts/Denso Light.otf', cssClass: 'denso-light' },
+        { name: 'Denso Bold', path: '/denso fonts/Denso Bold.otf', cssClass: 'denso-bold-real' },
+        { name: 'Denso Bold Italic', path: '/denso fonts/Denso Bold Italic.otf', cssClass: 'denso-bold-italic' },
+        { name: 'Denso Light Italic', path: '/denso fonts/Denso Light Italic.otf', cssClass: 'denso-light-italic' },
+      ];
+
+      let styleContent = '';
+      
+      for (const font of fontsToLoad) {
+        try {
+          styleContent += `
+            @font-face {
+              font-family: '${font.name}';
+              src: url('${font.path}') format('opentype');
+              font-weight: normal;
+              font-style: normal;
+            }
+            .${font.cssClass} {
+              font-family: '${font.name}', 'IBM Plex Mono', 'Roboto Mono', 'Courier New', monospace !important;
+            }
+          `;
+        } catch (error) {
+          console.warn(`Could not load font: ${font.name}`, error);
+        }
+      }
+
+      const styleElement = document.createElement('style');
+      styleElement.id = 'denso-public-fonts';
+      styleElement.textContent = styleContent;
+      
+      const existingStyle = document.getElementById('denso-public-fonts');
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+      
+      document.head.appendChild(styleElement);
+    };
+
+    loadDensoFonts();
+
+    const handleCustomFontLoad = () => {
+      setFontOptions(getAvailableFontOptions());
+    };
+
+    window.addEventListener('denso-font-loaded', handleCustomFontLoad);
+    
+    return () => {
+      window.removeEventListener('denso-font-loaded', handleCustomFontLoad);
+    };
+  }, []);
+
   React.useEffect(() => {
-    // If manual boxes per row/column are set, use those values
     if (boxesPerRow !== null && boxesPerColumn !== null) {
       setBoxesPerPage(boxesPerRow * boxesPerColumn);
       return;
     }
 
-    // Otherwise calculate automatically based on page size and box dimensions
     const pageDimensions = getPageDimensions();
-    
-    // Calculate max boxes that can fit in each dimension with spacing
     const maxBoxesInWidth = Math.floor((pageDimensions.width - boxSpacing) / (boxWidth + boxSpacing));
     const maxBoxesInHeight = Math.floor((pageDimensions.height - boxSpacing) / (boxHeight + boxSpacing));
-    
-    // Update calculated values
     setBoxesPerPage(maxBoxesInWidth * maxBoxesInHeight);
   }, [boxWidth, boxHeight, boxSpacing, orientation, pageSize, customWidth, customHeight, boxesPerRow, boxesPerColumn]);
   
-  // Get current page dimensions in mm based on settings
   const getPageDimensions = () => {
     if (pageSize === 'custom') {
       return orientation === 'portrait' 
@@ -155,7 +227,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
         showFooter,
         customQty: customQty || undefined,
         footerFontSize,
-        // Color options
         boxBorderColor,
         countColor,
         serialColor,
@@ -163,7 +234,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
         qrCodeBgColor,
         footerQtyColor,
         footerInfoColor,
-        // New options
         qrCodeTransparentBg,
         qrCodeWidth: useCustomQRDimensions ? qrCodeWidth : undefined,
         qrCodeHeight: useCustomQRDimensions ? qrCodeHeight : undefined,
@@ -190,7 +260,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setShowPreview(!showPreview);
   };
   
-  // Navigate preview pages
   const nextPage = () => {
     if (previewPage < totalPages - 1) {
       setPreviewPage(previewPage + 1);
@@ -203,14 +272,12 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     }
   };
   
-  // Get items for current preview page
   const getCurrentPageItems = () => {
     const start = previewPage * boxesPerPage;
     const end = start + boxesPerPage;
     return data.slice(start, end);
   };
 
-  // Reset all options to default values
   const resetToDefaults = () => {
     setBoxWidth(50);
     setBoxHeight(30);
@@ -221,14 +288,13 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setPageSize('a4');
     setCustomWidth(210);
     setCustomHeight(297);
-    setFontFamily('denso-bold');
+    setFontFamily('denso-regular');
     setBoxesPerRow(null);
     setBoxesPerColumn(null);
     setCountOutsideBox(true);
     setShowFooter(true);
     setCustomQty("");
     setFooterFontSize(12);
-    // Reset color options
     setBoxBorderColor('#FF0000');
     setCountColor('#FF0000');
     setSerialColor('#000000');
@@ -236,19 +302,16 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setQrCodeBgColor('#FFFFFF');
     setFooterQtyColor('#FF0000');
     setFooterInfoColor('#00AA50');
-    // Reset new options
-    setQrCodeTransparentBg(true); // Keep default as true
+    setQrCodeTransparentBg(true);
     setUseCustomQRDimensions(false);
     setQrCodeWidth(18);
     setQrCodeHeight(18);
   };
 
-  // Get actual quantity to display
   const getDisplayQty = () => {
     return customQty ? customQty : `${data.length}`;
   };
 
-  // Color picker component
   const ColorPicker = ({ 
     label, 
     value, 
@@ -363,25 +426,21 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     
                     return (
                       <div key={index} className="relative">
-                        {/* Count number outside the box using selected color */}
                         <div className="absolute -left-6 top-1/2 transform -translate-y-1/2 text-xs font-bold" style={{ color: countColor }}>
                           {count}.
                         </div>
                         
-                        {/* Box with border in selected color */}
                         <div className="border p-2 flex flex-row justify-between items-center" style={{ 
                           width: '120px', 
                           height: '75px',
                           borderColor: boxBorderColor
                         }}>
-                          {/* Serial number centered in left half with selected color */}
                           <div className="flex items-center justify-center w-1/2 h-full">
                             <div className="text-xs font-bold text-center" style={{ color: serialColor }}>
                               {serial}
                             </div>
                           </div>
                           
-                          {/* QR code centered in right half with selected colors */}
                           <div className="flex justify-center items-center w-1/2 h-full">
                             <QRCodeSVG 
                               value={qrText} 
@@ -437,7 +496,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                 </TabsList>
                 
                 <TabsContent value="layout" className="space-y-6">
-                  {/* Page Settings */}
                   <div className="space-y-3">
                     <h3 className="text-sm font-medium">Page Settings</h3>
                     
@@ -503,7 +561,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     )}
                   </div>
 
-                  {/* Box Settings */}
                   <div className="space-y-3">
                     <h3 className="text-sm font-medium">Box Settings</h3>
                     
@@ -534,7 +591,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                       </div>
                     </div>
 
-                    {/* Box Spacing Setting */}
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <Label>Box Spacing: {boxSpacing} mm</Label>
@@ -551,7 +607,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                       </p>
                     </div>
 
-                    {/* Count Position Setting */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="count-position" className="font-medium">
@@ -569,7 +624,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     </div>
                   </div>
 
-                  {/* Footer Settings */}
                   <div className="space-y-3 border-t pt-3">
                     <h3 className="text-sm font-medium">Footer Settings</h3>
                     
@@ -623,7 +677,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     )}
                   </div>
 
-                  {/* QR Code Settings with new options */}
                   <div className="space-y-3">
                     <h3 className="text-sm font-medium">QR Code & Font Settings</h3>
                     
@@ -728,7 +781,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     </div>
                   </div>
                   
-                  {/* Advanced Layout Settings */}
                   <div className="space-y-3 border-t pt-3">
                     <h3 className="text-sm font-medium">Advanced Layout (Optional)</h3>
                     <p className="text-xs text-gray-500">Manually specify boxes per row/column or leave empty for auto-calculation</p>
@@ -772,7 +824,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                   </div>
                 </TabsContent>
 
-                {/* Color Settings Tab */}
                 <TabsContent value="colors" className="space-y-6">
                   <div className="space-y-3">
                     <h3 className="text-sm font-medium">Box & Content Colors</h3>
