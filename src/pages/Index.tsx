@@ -16,9 +16,15 @@ import {
 const Index = () => {
   const [excelData, setExcelData] = useState<ExcelRow[]>([]);
   const [showFontUploader, setShowFontUploader] = useState(false);
+  const [customFontLoaded, setCustomFontLoaded] = useState(false);
 
   const handleDataLoaded = (data: ExcelRow[]) => {
     setExcelData(data);
+  };
+
+  const handleFontUploaded = (fontName: string) => {
+    setCustomFontLoaded(true);
+    console.log('DENSO corporate font loaded:', fontName);
   };
 
   // Add OCR-B (Denso) font for QR code generation
@@ -40,6 +46,19 @@ const Index = () => {
     link.rel = 'stylesheet';
     link.href = 'https://fonts.googleapis.com/css2?family=PT+Mono&display=swap'; // Fallback monospaced font
     document.head.appendChild(link);
+
+    // Check if custom DENSO font was previously loaded
+    const savedFont = localStorage.getItem('denso-custom-font');
+    if (savedFont) {
+      try {
+        const fontInfo = JSON.parse(savedFont);
+        if (fontInfo.loaded) {
+          setCustomFontLoaded(true);
+        }
+      } catch (error) {
+        console.error('Error parsing saved font info:', error);
+      }
+    }
     
     return () => {
       document.head.removeChild(style);
@@ -58,6 +77,7 @@ const Index = () => {
               <MenubarContent>
                 <MenubarItem onClick={() => setShowFontUploader(true)}>
                   Upload DENSO Font
+                  {customFontLoaded && <span className="ml-2 text-green-600">✓</span>}
                 </MenubarItem>
               </MenubarContent>
             </MenubarMenu>
@@ -77,7 +97,10 @@ const Index = () => {
         <div className="max-w-4xl mx-auto space-y-8">
           {/* Font Uploader Modal */}
           {showFontUploader && (
-            <FontUploader onClose={() => setShowFontUploader(false)} />
+            <FontUploader 
+              onClose={() => setShowFontUploader(false)}
+              onFontUploaded={handleFontUploaded}
+            />
           )}
 
           {/* Step 1: Upload Excel File */}
@@ -116,8 +139,9 @@ const Index = () => {
             <ol className="list-decimal list-inside space-y-2 text-gray-600">
               <li>Upload an Excel file with columns for Count, Unit Serial Number, and QR Code Text</li>
               <li>Preview the data to ensure it's been correctly parsed</li>
+              <li>Upload your DENSO corporate font file (optional) via the File menu</li>
               <li>Customize your QR code layout, size, appearance, and colors</li>
-              <li>Choose from multiple font options including OCR-B (Denso)</li>
+              <li>Choose from multiple font options including your uploaded DENSO corporate font</li>
               <li>Set transparent backgrounds and custom dimensions for QR codes</li>
               <li>Choose your preferred file format (PDF, SVG, or EPS)</li>
               <li>Generate and download your files for use in Adobe Illustrator or other design software</li>

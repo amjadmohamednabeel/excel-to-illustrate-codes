@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,9 +6,10 @@ import { X, Upload } from 'lucide-react';
 
 interface FontUploaderProps {
   onClose: () => void;
+  onFontUploaded?: (fontName: string) => void;
 }
 
-const FontUploader: React.FC<FontUploaderProps> = ({ onClose }) => {
+const FontUploader: React.FC<FontUploaderProps> = ({ onClose, onFontUploaded }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
@@ -31,7 +31,7 @@ const FontUploader: React.FC<FontUploaderProps> = ({ onClose }) => {
     try {
       // Create a URL for the uploaded font file
       const fontUrl = URL.createObjectURL(file);
-      const fontName = file.name.split('.')[0];
+      const fontName = `DENSO-${file.name.split('.')[0]}`;
       
       // Create font-face CSS
       const fontFace = new FontFace(fontName, `url(${fontUrl})`);
@@ -48,6 +48,9 @@ const FontUploader: React.FC<FontUploaderProps> = ({ onClose }) => {
         .font-denso, .font-denso-bold {
           font-family: var(--denso-font-family) !important;
         }
+        .denso-corporate-font {
+          font-family: '${fontName}' !important;
+        }
       `;
       
       // Remove existing custom font style if any
@@ -58,10 +61,27 @@ const FontUploader: React.FC<FontUploaderProps> = ({ onClose }) => {
       
       document.head.appendChild(style);
 
+      // Store font info in localStorage for persistence
+      localStorage.setItem('denso-custom-font', JSON.stringify({
+        name: fontName,
+        originalName: file.name,
+        loaded: true
+      }));
+
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('denso-font-loaded', { 
+        detail: { fontName } 
+      }));
+
       toast({
         title: "Success",
-        description: `DENSO font "${fontName}" has been loaded successfully`,
+        description: `DENSO corporate font "${file.name}" has been loaded successfully`,
       });
+      
+      // Notify parent component
+      if (onFontUploaded) {
+        onFontUploaded(fontName);
+      }
       
       onClose();
     } catch (error) {
@@ -107,7 +127,7 @@ const FontUploader: React.FC<FontUploaderProps> = ({ onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <Card className="w-full max-w-md mx-4">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-lg">Upload DENSO Font</CardTitle>
+          <CardTitle className="text-lg">Upload DENSO Corporate Font</CardTitle>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -127,7 +147,7 @@ const FontUploader: React.FC<FontUploaderProps> = ({ onClose }) => {
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium text-gray-900">
-                  Drag and drop your DENSO font file here
+                  Drag and drop your DENSO corporate font file here
                 </p>
                 <p className="text-xs text-gray-500">
                   Supports .woff, .woff2, .ttf, .otf
@@ -157,7 +177,7 @@ const FontUploader: React.FC<FontUploaderProps> = ({ onClose }) => {
             </div>
           </div>
           <div className="mt-4 text-xs text-gray-500">
-            <p><strong>Note:</strong> The uploaded font will be applied to DENSO-styled elements in your QR codes.</p>
+            <p><strong>Note:</strong> Once uploaded, the DENSO corporate font will be available in the QR code font options.</p>
           </div>
         </CardContent>
       </Card>
