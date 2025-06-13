@@ -4,9 +4,18 @@ import { ExcelRow } from "@/utils/excelParser";
 import ExcelUploader from "@/components/ExcelUploader";
 import PreviewTable from "@/components/PreviewTable";
 import QRCodeGenerator from "@/components/QRCodeGenerator";
+import FontUploader from "@/components/FontUploader";
+import {
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarTrigger,
+} from "@/components/ui/menubar";
 
 const Index = () => {
   const [excelData, setExcelData] = useState<ExcelRow[]>([]);
+  const [showFontUploader, setShowFontUploader] = useState(false);
 
   const handleDataLoaded = (data: ExcelRow[]) => {
     setExcelData(data);
@@ -41,6 +50,20 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <div className="container mx-auto px-4 py-8">
+        {/* Menu Bar */}
+        <div className="mb-6">
+          <Menubar>
+            <MenubarMenu>
+              <MenubarTrigger>File</MenubarTrigger>
+              <MenubarContent>
+                <MenubarItem onClick={() => setShowFontUploader(true)}>
+                  Upload DENSO Font
+                </MenubarItem>
+              </MenubarContent>
+            </MenubarMenu>
+          </Menubar>
+        </div>
+
         <header className="text-center mb-12">
           <h1 className="text-3xl font-bold text-blue-800 mb-2">
             Customizable Excel to QR Code Generator
@@ -52,6 +75,11 @@ const Index = () => {
         </header>
 
         <div className="max-w-4xl mx-auto space-y-8">
+          {/* Font Uploader Modal */}
+          {showFontUploader && (
+            <FontUploader onClose={() => setShowFontUploader(false)} />
+          )}
+
           {/* Step 1: Upload Excel File */}
           <section>
             <h2 className="text-xl font-semibold text-blue-700 mb-4">
