@@ -535,8 +535,33 @@ const loadFontAsBase64 = async (fontName: string): Promise<string | null> => {
     const fontFace = Array.from(document.fonts).find(font => font.family === fontName);
     if (!fontFace) return null;
     
-    // Get the font URL from CSS
-    const fontUrl = fontFace.src;
+    // Get the font URL from CSS rules instead of FontFace.src
+    const styleSheets = Array.from(document.styleSheets);
+    let fontUrl: string | null = null;
+    
+    for (const sheet of styleSheets) {
+      try {
+        const rules = Array.from(sheet.cssRules || sheet.rules || []);
+        for (const rule of rules) {
+          if (rule instanceof CSSFontFaceRule && rule.style.fontFamily.includes(fontName)) {
+            const srcValue = rule.style.getPropertyValue('src');
+            if (srcValue) {
+              // Extract URL from src value (e.g., "url('font.woff2')")
+              const urlMatch = srcValue.match(/url\(['"]?([^'"]+)['"]?\)/);
+              if (urlMatch) {
+                fontUrl = urlMatch[1];
+                break;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // Skip inaccessible stylesheets (CORS)
+        continue;
+      }
+      if (fontUrl) break;
+    }
+    
     if (!fontUrl) return null;
     
     // Fetch the font file and convert to base64
