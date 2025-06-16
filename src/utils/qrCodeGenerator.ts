@@ -528,6 +528,28 @@ const getDensoFontName = (): string => {
   return densoFontInfo ? JSON.parse(densoFontInfo).name : 'courier';
 };
 
+// Helper function to convert font file to base64 for jsPDF
+const loadFontAsBase64 = async (fontName: string): Promise<string | null> => {
+  try {
+    // Try to get font from document.fonts
+    const fontFace = Array.from(document.fonts).find(font => font.family === fontName);
+    if (!fontFace) return null;
+    
+    // Get the font URL from CSS
+    const fontUrl = fontFace.src;
+    if (!fontUrl) return null;
+    
+    // Fetch the font file and convert to base64
+    const response = await fetch(fontUrl);
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    return base64;
+  } catch (error) {
+    console.warn('Could not load font as base64:', error);
+    return null;
+  }
+};
+
 // Generate PDF version with improved layout
 export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationOptions> = {}) => {
   // Import required libraries dynamically to avoid hydration issues
@@ -554,14 +576,61 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   const numPages = Math.ceil(data.length / layout.boxesPerPage);
   
   // Function to determine the font to use with DENSO support
-  const getFont = () => {
-    if (opts.fontFamily.includes('denso')) {
+  const getFont = async () => {
+    if (opts.fontFamily.includes('denso') || opts.fontFamily === 'denso-custom') {
       // Check if custom DENSO font is loaded
       if (isDensoFontLoaded()) {
-        // For PDF, we'll use a monospace font as fallback since we can't embed custom fonts easily
-        return 'courier';
+        try {
+          const densoFontName = getDensoFontName();
+          console.log(`Attempting to use DENSO font for PDF: ${densoFontName}`);
+          
+          // Try to load the custom font as base64
+          const fontBase64 = await loadFontAsBase64(densoFontName);
+          if (fontBase64) {
+            // Add the custom font to jsPDF
+            pdf.addFileToVFS(`${densoFontName}.ttf`, fontBase64);
+            pdf.addFont(`${densoFontName}.ttf`, densoFontName, 'normal');
+            return densoFontName;
+          }
+        } catch (error) {
+          console.warn('Could not load custom DENSO font for PDF:', error);
+        }
       }
-      return 'courier'; // Use courier as a monospaced fallback for Denso font in PDF
+      
+      // Check if it's one of the public DENSO fonts
+      if (opts.fontFamily.includes('denso-regular') || opts.fontFamily.includes('denso-bold-real') || 
+          opts.fontFamily.includes('denso-light') || opts.fontFamily.includes('denso-bold-italic') || 
+          opts.fontFamily.includes('denso-light-italic')) {
+        try {
+          // Map font family to actual font file
+          const fontMap: Record<string, string> = {
+            'denso-regular': 'DENSO-Regular',
+            'denso-bold-real': 'DENSO-Bold',
+            'denso-light': 'Denso Light',
+            'denso-bold-italic': 'Denso Bold Italic',
+            'denso-light-italic': 'Denso Light Italic'
+          };
+          
+          const fontFileName = fontMap[opts.fontFamily] || 'DENSO-Regular';
+          console.log(`Attempting to use public DENSO font: ${fontFileName}`);
+          
+          // Try to load the font from public directory
+          const fontResponse = await fetch(`/denso fonts/${fontFileName}.otf`);
+          if (fontResponse.ok) {
+            const fontArrayBuffer = await fontResponse.arrayBuffer();
+            const fontBase64 = btoa(String.fromCharCode(...new Uint8Array(fontArrayBuffer)));
+            
+            // Add the font to jsPDF
+            pdf.addFileToVFS(`${fontFileName}.ttf`, fontBase64);
+            pdf.addFont(`${fontFileName}.ttf`, fontFileName, 'normal');
+            return fontFileName;
+          }
+        } catch (error) {
+          console.warn('Could not load public DENSO font for PDF:', error);
+        }
+      }
+      
+      return 'courier'; // Fallback to courier
     } else if (opts.fontFamily.includes('times')) {
       return 'times';
     } else if (opts.fontFamily.includes('courier')) {
@@ -572,7 +641,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   };
   
   const fontStyle = opts.fontFamily.includes('bold') ? 'bold' : 'normal';
-  const font = getFont();
+  const font = await getFont();
   
   // Convert hex color to RGB array for PDF (0-255 range)
   const hexToRGBArray = (hex: string): [number, number, number] => {
@@ -593,20 +662,12 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   const footerQtyColorRGB = hexToRGBArray(opts.footerQtyColor || defaultOptions.footerQtyColor!);
   const footerInfoColorRGB = hexToRGBArray(opts.footerInfoColor || defaultOptions.footerInfoColor!);
 
-  // Add custom DENSO font if available
-  if (opts.fontFamily.includes('denso') && isDensoFontLoaded()) {
-    try {
-      // Try to add custom font data if available in localStorage or as a file
-      const densoFontName = getDensoFontName();
-      console.log(`Using DENSO font for PDF: ${densoFontName}`);
-      
-      // Note: jsPDF has limitations with custom fonts. For now, we'll use courier as fallback
-      // In a production environment, you would need to add the font file to jsPDF
-      pdf.setFont('courier', fontStyle);
-    } catch (error) {
-      console.warn('Could not load DENSO font for PDF, using courier fallback:', error);
-      pdf.setFont('courier', fontStyle);
-    }
+  // Set the font for the PDF
+  try {
+    pdf.setFont(font, fontStyle);
+  } catch (error) {
+    console.warn(`Could not set font ${font}, falling back to helvetica:`, error);
+    pdf.setFont('helvetica', fontStyle);
   }
   
   // Generate QR codes and add to PDF page by page
@@ -659,14 +720,22 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
         if (opts.countOutsideBox) {
           pdf.setTextColor(...countColorRGB); // Count color
           pdf.setFontSize(10);
-          pdf.setFont(font, 'bold');
+          try {
+            pdf.setFont(font, 'bold');
+          } catch {
+            pdf.setFont('helvetica', 'bold');
+          }
           pdf.text(`${count}.`, x - 5, y + opts.boxHeight / 2, { align: 'right', baseline: 'middle' });
         }
         
         // Add serial number in specified color in the center of the left half of the box
         pdf.setTextColor(...serialColorRGB); // Serial color
         pdf.setFontSize(opts.fontSize);
-        pdf.setFont(font, fontStyle);
+        try {
+          pdf.setFont(font, fontStyle);
+        } catch {
+          pdf.setFont('helvetica', fontStyle);
+        }
         
         // Center the serial text in the left half of the box
         const textWidth = pdf.getStringUnitWidth(serial) * pdf.getFontSize() / pdf.internal.scaleFactor;
@@ -711,11 +780,15 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
       // Add "Qty. - X each" with specified color on the bottom left
       pdf.setFontSize(footerSize);
       pdf.setTextColor(...footerQtyColorRGB); // Qty color
+      try {
+        pdf.setFont(font, 'bold');
+      } catch {
+        pdf.setFont('helvetica', 'bold');
+      }
       pdf.text(`Qty. - ${qtyText} each`, 20, pageDims.height - 10);
       
       // Add footer information with specified color on the bottom right
       pdf.setTextColor(...footerInfoColorRGB); // Info color
-      pdf.setFont(font, 'bold');
       pdf.text("Serial Number+QR code", pageDims.width - 20, pageDims.height - 20, { align: 'right' });
       pdf.text(`Sticker Size - ${opts.boxWidth} x ${opts.boxHeight}mm`, pageDims.width - 20, pageDims.height - 10, { align: 'right' });
     }
