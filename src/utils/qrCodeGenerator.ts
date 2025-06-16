@@ -522,57 +522,60 @@ const isDensoFontLoaded = (): boolean => {
   return densoFontInfo ? JSON.parse(densoFontInfo).loaded : false;
 };
 
-// Helper function to get DENSO font name
-const getDensoFontName = (): string => {
+// Helper function to get DENSO font data
+const getDensoFontData = (): { name: string; base64: string } | null => {
   const densoFontInfo = localStorage.getItem('denso-custom-font');
-  return densoFontInfo ? JSON.parse(densoFontInfo).name : 'courier';
+  if (!densoFontInfo) return null;
+  
+  try {
+    const fontData = JSON.parse(densoFontInfo);
+    if (fontData.loaded && fontData.base64Data) {
+      return {
+        name: fontData.name,
+        base64: fontData.base64Data
+      };
+    }
+  } catch (error) {
+    console.error('Error parsing DENSO font data:', error);
+  }
+  
+  return null;
 };
 
-// Helper function to convert font file to base64 for jsPDF
+// Simplified helper function to convert font file to base64 for jsPDF
 const loadFontAsBase64 = async (fontName: string): Promise<string | null> => {
-  try {
-    // Try to get font from document.fonts
-    const fontFace = Array.from(document.fonts).find(font => font.family === fontName);
-    if (!fontFace) return null;
-    
-    // Get the font URL from CSS rules instead of FontFace.src
-    const styleSheets = Array.from(document.styleSheets);
-    let fontUrl: string | null = null;
-    
-    for (const sheet of styleSheets) {
-      try {
-        const rules = Array.from(sheet.cssRules || sheet.rules || []);
-        for (const rule of rules) {
-          if (rule instanceof CSSFontFaceRule && rule.style.fontFamily.includes(fontName)) {
-            const srcValue = rule.style.getPropertyValue('src');
-            if (srcValue) {
-              // Extract URL from src value (e.g., "url('font.woff2')")
-              const urlMatch = srcValue.match(/url\(['"]?([^'"]+)['"]?\)/);
-              if (urlMatch) {
-                fontUrl = urlMatch[1];
-                break;
-              }
-            }
-          }
-        }
-      } catch (e) {
-        // Skip inaccessible stylesheets (CORS)
-        continue;
-      }
-      if (fontUrl) break;
-    }
-    
-    if (!fontUrl) return null;
-    
-    // Fetch the font file and convert to base64
-    const response = await fetch(fontUrl);
-    const arrayBuffer = await response.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-    return base64;
-  } catch (error) {
-    console.warn('Could not load font as base64:', error);
-    return null;
+  // First, try to get the custom DENSO font from localStorage
+  const densoFontData = getDensoFontData();
+  if (densoFontData && densoFontData.name === fontName) {
+    console.log('Using stored DENSO font base64 data for PDF');
+    return densoFontData.base64;
   }
+  
+  // If it's a public DENSO font, try to load it from the public directory
+  const fontMap: Record<string, string> = {
+    'denso-regular': 'DENSO-Regular',
+    'denso-bold-real': 'DENSO-Bold',
+    'denso-light': 'Denso Light',
+    'denso-bold-italic': 'Denso Bold Italic',
+    'denso-light-italic': 'Denso Light Italic'
+  };
+  
+  const publicFontName = fontMap[fontName];
+  if (publicFontName) {
+    try {
+      console.log(`Loading public DENSO font: ${publicFontName}`);
+      const fontResponse = await fetch(`/Denso Fonts/${publicFontName}.otf`);
+      if (fontResponse.ok) {
+        const arrayBuffer = await fontResponse.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        return base64;
+      }
+    } catch (error) {
+      console.warn('Could not load public DENSO font:', error);
+    }
+  }
+  
+  return null;
 };
 
 // Generate PDF version with improved layout
@@ -604,51 +607,41 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   const getFont = async () => {
     if (opts.fontFamily.includes('denso') || opts.fontFamily === 'denso-custom') {
       // Check if custom DENSO font is loaded
-      if (isDensoFontLoaded()) {
+      const densoFontData = getDensoFontData();
+      if (densoFontData) {
         try {
-          const densoFontName = getDensoFontName();
-          console.log(`Attempting to use DENSO font for PDF: ${densoFontName}`);
+          console.log(`Using custom DENSO font for PDF: ${densoFontData.name}`);
           
-          // Try to load the custom font as base64
-          const fontBase64 = await loadFontAsBase64(densoFontName);
-          if (fontBase64) {
-            // Add the custom font to jsPDF
-            pdf.addFileToVFS(`${densoFontName}.ttf`, fontBase64);
-            pdf.addFont(`${densoFontName}.ttf`, densoFontName, 'normal');
-            return densoFontName;
-          }
+          // Add the custom font to jsPDF using stored base64 data
+          const fontFileName = `${densoFontData.name}.ttf`;
+          pdf.addFileToVFS(fontFileName, densoFontData.base64);
+          pdf.addFont(fontFileName, densoFontData.name, 'normal');
+          return densoFontData.name;
         } catch (error) {
           console.warn('Could not load custom DENSO font for PDF:', error);
         }
       }
       
       // Check if it's one of the public DENSO fonts
-      if (opts.fontFamily.includes('denso-regular') || opts.fontFamily.includes('denso-bold-real') || 
-          opts.fontFamily.includes('denso-light') || opts.fontFamily.includes('denso-bold-italic') || 
-          opts.fontFamily.includes('denso-light-italic')) {
+      const fontMap: Record<string, string> = {
+        'denso-regular': 'DENSO-Regular',
+        'denso-bold-real': 'DENSO-Bold',
+        'denso-light': 'Denso Light',
+        'denso-bold-italic': 'Denso Bold Italic',
+        'denso-light-italic': 'Denso Light Italic'
+      };
+      
+      const publicFontName = fontMap[opts.fontFamily];
+      if (publicFontName) {
         try {
-          // Map font family to actual font file
-          const fontMap: Record<string, string> = {
-            'denso-regular': 'DENSO-Regular',
-            'denso-bold-real': 'DENSO-Bold',
-            'denso-light': 'Denso Light',
-            'denso-bold-italic': 'Denso Bold Italic',
-            'denso-light-italic': 'Denso Light Italic'
-          };
+          console.log(`Using public DENSO font: ${publicFontName}`);
           
-          const fontFileName = fontMap[opts.fontFamily] || 'DENSO-Regular';
-          console.log(`Attempting to use public DENSO font: ${fontFileName}`);
-          
-          // Try to load the font from public directory
-          const fontResponse = await fetch(`/denso fonts/${fontFileName}.otf`);
-          if (fontResponse.ok) {
-            const fontArrayBuffer = await fontResponse.arrayBuffer();
-            const fontBase64 = btoa(String.fromCharCode(...new Uint8Array(fontArrayBuffer)));
-            
-            // Add the font to jsPDF
-            pdf.addFileToVFS(`${fontFileName}.ttf`, fontBase64);
-            pdf.addFont(`${fontFileName}.ttf`, fontFileName, 'normal');
-            return fontFileName;
+          const fontBase64 = await loadFontAsBase64(opts.fontFamily);
+          if (fontBase64) {
+            const fontFileName = `${publicFontName}.ttf`;
+            pdf.addFileToVFS(fontFileName, fontBase64);
+            pdf.addFont(fontFileName, publicFontName, 'normal');
+            return publicFontName;
           }
         } catch (error) {
           console.warn('Could not load public DENSO font for PDF:', error);
@@ -690,6 +683,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   // Set the font for the PDF
   try {
     pdf.setFont(font, fontStyle);
+    console.log(`Successfully set font: ${font} with style: ${fontStyle}`);
   } catch (error) {
     console.warn(`Could not set font ${font}, falling back to helvetica:`, error);
     pdf.setFont('helvetica', fontStyle);

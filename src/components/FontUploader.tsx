@@ -29,11 +29,15 @@ const FontUploader: React.FC<FontUploaderProps> = ({ onClose, onFontUploaded }) 
 
     setIsLoading(true);
     try {
-      // Create a URL for the uploaded font file
+      // Convert font file to base64 immediately
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      
+      // Create a URL for the uploaded font file for DOM usage
       const fontUrl = URL.createObjectURL(file);
       const fontName = `DENSO-${file.name.split('.')[0]}`;
       
-      // Create font-face CSS
+      // Create font-face CSS for immediate DOM usage
       const fontFace = new FontFace(fontName, `url(${fontUrl})`);
       await fontFace.load();
       document.fonts.add(fontFace);
@@ -61,10 +65,12 @@ const FontUploader: React.FC<FontUploaderProps> = ({ onClose, onFontUploaded }) 
       
       document.head.appendChild(style);
 
-      // Store font info in localStorage for persistence
+      // Store font info in localStorage with base64 data for PDF generation
       localStorage.setItem('denso-custom-font', JSON.stringify({
         name: fontName,
         originalName: file.name,
+        base64Data: base64,
+        fileType: fileExtension,
         loaded: true
       }));
 
