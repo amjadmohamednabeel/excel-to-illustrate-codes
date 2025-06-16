@@ -1,4 +1,3 @@
-
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
@@ -517,6 +516,18 @@ const calculateLayout = (options: GenerationOptions) => {
   };
 };
 
+// Helper function to check if DENSO font is loaded
+const isDensoFontLoaded = (): boolean => {
+  const densoFontInfo = localStorage.getItem('denso-custom-font');
+  return densoFontInfo ? JSON.parse(densoFontInfo).loaded : false;
+};
+
+// Helper function to get DENSO font name
+const getDensoFontName = (): string => {
+  const densoFontInfo = localStorage.getItem('denso-custom-font');
+  return densoFontInfo ? JSON.parse(densoFontInfo).name : 'courier';
+};
+
 // Generate PDF version with improved layout
 export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationOptions> = {}) => {
   // Import required libraries dynamically to avoid hydration issues
@@ -542,9 +553,14 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   // Calculate number of pages needed
   const numPages = Math.ceil(data.length / layout.boxesPerPage);
   
-  // Function to determine the font to use
+  // Function to determine the font to use with DENSO support
   const getFont = () => {
     if (opts.fontFamily.includes('denso')) {
+      // Check if custom DENSO font is loaded
+      if (isDensoFontLoaded()) {
+        // For PDF, we'll use a monospace font as fallback since we can't embed custom fonts easily
+        return 'courier';
+      }
       return 'courier'; // Use courier as a monospaced fallback for Denso font in PDF
     } else if (opts.fontFamily.includes('times')) {
       return 'times';
@@ -576,6 +592,22 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   const qrCodeBgColorRGB = hexToRGBArray(opts.qrCodeBgColor || defaultOptions.qrCodeBgColor!);
   const footerQtyColorRGB = hexToRGBArray(opts.footerQtyColor || defaultOptions.footerQtyColor!);
   const footerInfoColorRGB = hexToRGBArray(opts.footerInfoColor || defaultOptions.footerInfoColor!);
+
+  // Add custom DENSO font if available
+  if (opts.fontFamily.includes('denso') && isDensoFontLoaded()) {
+    try {
+      // Try to add custom font data if available in localStorage or as a file
+      const densoFontName = getDensoFontName();
+      console.log(`Using DENSO font for PDF: ${densoFontName}`);
+      
+      // Note: jsPDF has limitations with custom fonts. For now, we'll use courier as fallback
+      // In a production environment, you would need to add the font file to jsPDF
+      pdf.setFont('courier', fontStyle);
+    } catch (error) {
+      console.warn('Could not load DENSO font for PDF, using courier fallback:', error);
+      pdf.setFont('courier', fontStyle);
+    }
+  }
   
   // Generate QR codes and add to PDF page by page
   for (let pageNum = 0; pageNum < numPages; pageNum++) {
