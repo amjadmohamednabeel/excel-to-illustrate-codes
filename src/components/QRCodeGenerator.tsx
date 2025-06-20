@@ -91,11 +91,16 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [pageSize, setPageSize] = useState<string>('a4');
   const [customWidth, setCustomWidth] = useState(210);
   const [customHeight, setCustomHeight] = useState(297);
-  const [fontFamily, setFontFamily] = useState('denso-regular'); // Default to DENSO Regular
+  const [fontFamily, setFontFamily] = useState('denso-regular');
   const [boxesPerRow, setBoxesPerRow] = useState<number | null>(null);
   const [boxesPerColumn, setBoxesPerColumn] = useState<number | null>(null);
   const [boxesPerPage, setBoxesPerPage] = useState<number>(25);
   const [countOutsideBox, setCountOutsideBox] = useState(true);
+  
+  // New positioning options
+  const [serialToBoxGap, setSerialToBoxGap] = useState(3.1);
+  const [serialToQrGap, setSerialToQrGap] = useState(6.3);
+  const [qrToBoxGap, setQrToBoxGap] = useState(2.57);
   
   const [showFooter, setShowFooter] = useState(true);
   const [customQty, setCustomQty] = useState<string>("");
@@ -207,6 +212,22 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
       : { width: height, height: width };
   };
 
+  // Calculate positions based on gaps
+  const calculatePositions = () => {
+    const serialX = serialToBoxGap;
+    const qrX = serialX + serialToQrGap;
+    const totalContentWidth = serialToBoxGap + serialToQrGap + (useCustomQRDimensions ? qrCodeWidth : boxHeight * (qrCodeSize / 100)) + qrToBoxGap;
+    
+    return {
+      serialX,
+      qrX,
+      totalContentWidth,
+      isValidLayout: totalContentWidth <= boxWidth
+    };
+  };
+
+  const positions = calculatePositions();
+
   const totalPages = Math.ceil(data.length / boxesPerPage);
 
   const handleGenerate = async () => {
@@ -237,6 +258,10 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
         qrCodeTransparentBg,
         qrCodeWidth: useCustomQRDimensions ? qrCodeWidth : undefined,
         qrCodeHeight: useCustomQRDimensions ? qrCodeHeight : undefined,
+        // New positioning options
+        serialToBoxGap,
+        serialToQrGap,
+        qrToBoxGap,
       };
       
       await downloadIllustratorFiles(data, fileFormat, options);
@@ -292,6 +317,9 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setBoxesPerRow(null);
     setBoxesPerColumn(null);
     setCountOutsideBox(true);
+    setSerialToBoxGap(3.1);
+    setSerialToQrGap(6.3);
+    setQrToBoxGap(2.57);
     setShowFooter(true);
     setCustomQty("");
     setFooterFontSize(12);
@@ -424,27 +452,55 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     const qrText = row['QR Code Text'] || row.qrCodeText || serial;
                     const count = row['Count'] || row.count || (actualIndex + 1).toString();
                     
+                    // Calculate preview positions (scaled down for preview)
+                    const previewScale = 120 / boxWidth; // Scale factor for preview
+                    const previewSerialX = serialToBoxGap * previewScale;
+                    const previewQrX = (serialToBoxGap + serialToQrGap) * previewScale;
+                    const previewQrSize = useCustomQRDimensions ? 
+                      Math.min(qrCodeWidth, qrCodeHeight) * previewScale : 
+                      (boxHeight * (qrCodeSize / 100)) * previewScale;
+                    
                     return (
                       <div key={index} className="relative">
-                        <div className="absolute -left-6 top-1/2 transform -translate-y-1/2 text-xs font-bold" style={{ color: countColor }}>
-                          {count}.
-                        </div>
+                        {countOutsideBox && (
+                          <div className="absolute -left-6 top-1/2 transform -translate-y-1/2 text-xs font-bold" style={{ color: countColor }}>
+                            {count}.
+                          </div>
+                        )}
                         
-                        <div className="border p-2 flex flex-row justify-between items-center" style={{ 
+                        <div className="border relative" style={{ 
                           width: '120px', 
-                          height: '75px',
+                          height: `${(boxHeight / boxWidth) * 120}px`,
                           borderColor: boxBorderColor
                         }}>
-                          <div className="flex items-center justify-center w-1/2 h-full">
-                            <div className="text-xs font-bold text-center" style={{ color: serialColor }}>
-                              {serial}
-                            </div>
+                          {/* Serial Number */}
+                          <div 
+                            className="absolute text-xs font-bold flex items-center"
+                            style={{ 
+                              left: `${previewSerialX}px`,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              color: serialColor,
+                              fontSize: `${fontSize * previewScale}px`
+                            }}
+                          >
+                            {serial}
                           </div>
                           
-                          <div className="flex justify-center items-center w-1/2 h-full">
+                          {/* QR Code */}
+                          <div 
+                            className="absolute flex items-center justify-center"
+                            style={{
+                              left: `${previewQrX}px`,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              width: `${previewQrSize}px`,
+                              height: `${previewQrSize}px`
+                            }}
+                          >
                             <QRCodeSVG 
                               value={qrText} 
-                              size={40} 
+                              size={previewQrSize} 
                               fgColor={qrCodeColor}
                               bgColor={qrCodeTransparentBg ? "transparent" : qrCodeBgColor}
                             />
@@ -454,6 +510,15 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     );
                   })}
                 </div>
+                
+                {!positions.isValidLayout && (
+                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-sm text-yellow-800">
+                      ⚠️ Warning: Content width ({positions.totalContentWidth.toFixed(1)}mm) exceeds box width ({boxWidth}mm). 
+                      Please adjust the gaps or box width.
+                    </p>
+                  </div>
+                )}
                 
                 {showFooter && (
                 <div className="text-center mt-4 text-sm">
@@ -620,6 +685,74 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                       </div>
                       <p className="text-xs text-gray-500">
                         When enabled, the count number will be placed outside the box on the left (recommended)
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* New Positioning Controls Section */}
+                  <div className="space-y-3 border-t pt-3">
+                    <h3 className="text-sm font-medium">Content Positioning</h3>
+                    <p className="text-xs text-gray-500">
+                      Control the precise positioning of serial number and QR code within each box
+                    </p>
+                    
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label>Box Line to Serial Gap: {serialToBoxGap} mm</Label>
+                        </div>
+                        <Slider
+                          value={[serialToBoxGap]}
+                          min={0.5}
+                          max={10}
+                          step={0.1}
+                          onValueChange={(value) => setSerialToBoxGap(value[0])}
+                        />
+                        <p className="text-xs text-gray-500">
+                          Distance from left box edge to serial number
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label>Serial to QR Gap: {serialToQrGap} mm</Label>
+                        </div>
+                        <Slider
+                          value={[serialToQrGap]}
+                          min={1}
+                          max={20}
+                          step={0.1}
+                          onValueChange={(value) => setSerialToQrGap(value[0])}
+                        />
+                        <p className="text-xs text-gray-500">
+                          Distance from serial number to QR code
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label>QR to Box Line Gap: {qrToBoxGap} mm</Label>
+                        </div>
+                        <Slider
+                          value={[qrToBoxGap]}
+                          min={0.5}
+                          max={10}
+                          step={0.1}
+                          onValueChange={(value) => setQrToBoxGap(value[0])}
+                        />
+                        <p className="text-xs text-gray-500">
+                          Distance from QR code to right box edge
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-sm text-blue-800">
+                        📐 Total content width: {positions.totalContentWidth.toFixed(1)}mm 
+                        {positions.isValidLayout ? 
+                          ` ✓ (fits in ${boxWidth}mm box)` : 
+                          ` ⚠️ (exceeds ${boxWidth}mm box width)`
+                        }
                       </p>
                     </div>
                   </div>
@@ -926,7 +1059,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
 
           <Button 
             onClick={handleGenerate} 
-            disabled={isGenerating || data.length === 0}
+            disabled={isGenerating || data.length === 0 || !positions.isValidLayout}
             className="w-full"
           >
             {isGenerating ? 
@@ -935,6 +1068,12 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
             }
             <Download className="ml-2 h-4 w-4" />
           </Button>
+          
+          {!positions.isValidLayout && (
+            <p className="text-xs text-center text-red-600">
+              Please adjust positioning gaps to fit within box width before generating
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

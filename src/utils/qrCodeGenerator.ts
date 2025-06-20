@@ -1,3 +1,4 @@
+
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
@@ -34,6 +35,10 @@ export interface GenerationOptions {
   qrCodeTransparentBg?: boolean; // whether to use transparent background for QR code
   qrCodeWidth?: number; // custom width for QR code in mm (overrides qrCodeSize)
   qrCodeHeight?: number; // custom height for QR code in mm (overrides qrCodeSize)
+  // Positioning options
+  serialToBoxGap?: number; // gap from box line to serial number in mm
+  serialToQrGap?: number; // gap from serial number to QR code in mm
+  qrToBoxGap?: number; // gap from QR code to box line in mm
 }
 
 // Default options
@@ -61,6 +66,38 @@ const defaultOptions: GenerationOptions = {
   qrCodeTransparentBg: false, // Default to non-transparent background
   qrCodeWidth: undefined, // Default to using qrCodeSize
   qrCodeHeight: undefined, // Default to using qrCodeSize
+  // Default positioning
+  serialToBoxGap: 3.1, // 3.1mm gap from box line to serial
+  serialToQrGap: 6.3, // 6.3mm gap from serial to QR
+  qrToBoxGap: 2.57, // 2.57mm gap from QR to box line
+};
+
+// Function to calculate content positions based on gaps
+const calculateContentPositions = (options: GenerationOptions) => {
+  const opts = { ...defaultOptions, ...options };
+  
+  const serialX = opts.serialToBoxGap || defaultOptions.serialToBoxGap!;
+  const qrX = serialX + (opts.serialToQrGap || defaultOptions.serialToQrGap!);
+  
+  // Calculate QR dimensions
+  let qrWidth, qrHeight;
+  if (opts.qrCodeWidth && opts.qrCodeHeight) {
+    qrWidth = opts.qrCodeWidth;
+    qrHeight = opts.qrCodeHeight;
+  } else {
+    qrWidth = qrHeight = opts.boxHeight * opts.qrCodeSize;
+  }
+  
+  const totalContentWidth = serialX + (opts.serialToQrGap || defaultOptions.serialToQrGap!) + qrWidth + (opts.qrToBoxGap || defaultOptions.qrToBoxGap!);
+  
+  return {
+    serialX,
+    qrX,
+    qrWidth,
+    qrHeight,
+    totalContentWidth,
+    isValidLayout: totalContentWidth <= opts.boxWidth
+  };
 };
 
 // Gets page dimensions in mm based on the page size
@@ -96,6 +133,7 @@ const getPageDimensions = (pageSize: PageSize, orientation: 'portrait' | 'landsc
 // Generate QR code as SVG
 export const generateQRCodeSVG = (text: string, index: number, options: Partial<GenerationOptions> = {}): string => {
   const opts = { ...defaultOptions, ...options };
+  const positions = calculateContentPositions(opts);
   const size = 100;
   
   // Apply transparent background if requested
@@ -104,13 +142,14 @@ export const generateQRCodeSVG = (text: string, index: number, options: Partial<
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
       <rect width="100%" height="100%" fill="${bgFill}" />
-      <rect x="10%" y="10%" width="80%" height="80%" fill="${opts.qrCodeColor}" />
-      <text x="10%" y="20%" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="10" fill="${opts.countColor}" text-anchor="start">
+      <rect x="${positions.serialX}%" y="40%" width="30%" height="20%" fill="${opts.qrCodeColor}" />
+      <text x="${positions.serialX}%" y="35%" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="8" fill="${opts.countColor}" text-anchor="start">
         ${index}.
       </text>
-      <text x="25%" y="50%" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="10" font-weight="bold" fill="${opts.serialColor}" text-anchor="start">
+      <text x="${positions.serialX + 5}%" y="55%" font-family="${opts.fontFamily.replace('-bold', '')}" font-size="8" font-weight="bold" fill="${opts.serialColor}" text-anchor="start">
         ${text}
       </text>
+      <rect x="${positions.qrX}%" y="40%" width="${positions.qrWidth}%" height="${positions.qrHeight}%" fill="${opts.qrCodeColor}" />
     </svg>
   `;
   
@@ -120,6 +159,7 @@ export const generateQRCodeSVG = (text: string, index: number, options: Partial<
 // Generate EPS version of a QR code
 export const generateQRCodeEPS = (text: string, index: number, options: Partial<GenerationOptions> = {}): string => {
   const opts = { ...defaultOptions, ...options };
+  const positions = calculateContentPositions(opts);
   const size = 300; // Increased size for better visibility
   
   const fontName = opts.fontFamily.includes('bold') 
@@ -135,9 +175,9 @@ export const generateQRCodeEPS = (text: string, index: number, options: Partial<
   // Handle transparent background for EPS
   const bgColorCommand = opts.qrCodeTransparentBg ? 
     '% No background fill (transparent)' : 
-    `${qrBgColorRGB} SRGB\n${size * 0.1} ${size * 0.1} ${size * 0.8} ${size * 0.8} RF`;
+    `${qrBgColorRGB} SRGB\n${positions.serialX} ${size * 0.1} ${positions.qrWidth} ${positions.qrHeight} RF`;
   
-  let eps = `%!PS-Adobe-3.0 EPSF-3.0
+  const eps = `%!PS-Adobe-3.0 EPSF-3.0
 %%BoundingBox: 0 0 ${size} ${size}
 %%Creator: QR Code Generator
 %%Title: QR Code ${index}
@@ -168,20 +208,20 @@ export const generateQRCodeEPS = (text: string, index: number, options: Partial<
 % Background (may be transparent)
 ${bgColorCommand}
 
-% QR code placeholder
+% QR code positioned using calculated positions
 ${qrColorRGB} SRGB
-${size * 0.1} ${size * 0.1} ${size * 0.8} ${size * 0.8} RF
+${positions.qrX} ${size * 0.4} ${positions.qrWidth} ${positions.qrHeight} RF
 
-% Index number in specified color
+% Index number with custom color
 ${countColorRGB} SRGB
 /QR-Font ${opts.fontSize * 2} SF
-${size * 0.1} ${size * 0.9} M
+${positions.serialX} ${size * 0.9} M
 (${index}.) SH
 
-% Serial number text in specified color
+% Serial number text positioned using calculated positions
 ${serialColorRGB} SRGB
 /QR-Font ${opts.fontSize * 2} SF
-${size * 0.2} ${size * 0.5} M
+${positions.serialX} ${size * 0.5} M
 (${text}) SH
 
 %%EOF
@@ -207,21 +247,10 @@ const hexToRGB = (hex: string): string => {
 // Creates an illustrator-ready SVG with multiple QR codes in a grid layout
 export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<GenerationOptions> = {}): string => {
   const opts = { ...defaultOptions, ...options };
-  const boxHeight = opts.boxHeight;
+  const positions = calculateContentPositions(opts);
   
-  // Calculate QR code dimensions
-  let qrWidth, qrHeight;
-  if (opts.qrCodeWidth && opts.qrCodeHeight) {
-    // Use custom dimensions if specified
-    qrWidth = opts.qrCodeWidth;
-    qrHeight = opts.qrCodeHeight;
-  } else {
-    // Otherwise use the size ratio
-    qrWidth = qrHeight = boxHeight * opts.qrCodeSize;
-  }
-  
-  const padding = opts.boxSpacing || 10; // Use boxSpacing for padding
-  const boxesPerRow = opts.boxesPerRow || 5; // Default 5 boxes per row
+  const padding = opts.boxSpacing || 10;
+  const boxesPerRow = opts.boxesPerRow || 5;
   const rows = Math.ceil(data.length / boxesPerRow);
   
   const svgWidth = (opts.boxWidth + padding) * boxesPerRow + padding;
@@ -261,16 +290,16 @@ export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<Gen
       `;
     }
     
-    // Serial number centered in the left half of the box with specified color
+    // Serial number positioned using calculated positions
     svgContent += `
-      <text x="${opts.boxWidth / 4}" y="${opts.boxHeight/2}" font-family="${opts.fontFamily.includes('denso') ? 'OCR-B, monospace' : opts.fontFamily}" font-size="${opts.fontSize}" font-weight="bold" text-anchor="middle" dominant-baseline="middle" fill="${opts.serialColor}">
+      <text x="${positions.serialX}" y="${opts.boxHeight/2}" font-family="${opts.fontFamily.includes('denso') ? 'OCR-B, monospace' : opts.fontFamily}" font-size="${opts.fontSize}" font-weight="bold" text-anchor="start" dominant-baseline="middle" fill="${opts.serialColor}">
         ${serial}
       </text>
     `;
     
-    // QR code positioned on the right side, centered vertically with possibly custom dimensions
+    // QR code positioned using calculated positions
     svgContent += `
-      <image x="${opts.boxWidth * 0.6}" y="${(opts.boxHeight - qrHeight) / 2}" width="${qrWidth}" height="${qrHeight}" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" />
+      <image x="${positions.qrX}" y="${(opts.boxHeight - positions.qrHeight) / 2}" width="${positions.qrWidth}" height="${positions.qrHeight}" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" />
       </g>
     `;
   });
@@ -302,6 +331,7 @@ export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<Gen
 // Generate a complete layout in EPS format with specific dimensions
 export const generateEPSLayout = (data: ExcelRow[], options: Partial<GenerationOptions> = {}): string => {
   const opts = { ...defaultOptions, ...options };
+  const positions = calculateContentPositions(opts);
   
   const boxWidth = opts.boxWidth * 2.83465;  // Convert mm to points (1mm = 2.83465pts)
   const boxHeight = opts.boxHeight * 2.83465;
@@ -312,16 +342,11 @@ export const generateEPSLayout = (data: ExcelRow[], options: Partial<GenerationO
   const pageWidth = (boxWidth + padding) * boxesPerRow + padding;
   const pageHeight = (boxHeight + padding) * rows + padding;
   
-  // Calculate QR code dimensions
-  let qrWidth, qrHeight;
-  if (opts.qrCodeWidth && opts.qrCodeHeight) {
-    // Use custom dimensions if specified
-    qrWidth = opts.qrCodeWidth * 2.83465; // Convert to points
-    qrHeight = opts.qrCodeHeight * 2.83465;
-  } else {
-    // Otherwise use the size ratio
-    qrWidth = qrHeight = boxHeight * opts.qrCodeSize;
-  }
+  // Convert positioning to points
+  const serialXPts = positions.serialX * 2.83465;
+  const qrXPts = positions.qrX * 2.83465;
+  const qrWidthPts = positions.qrWidth * 2.83465;
+  const qrHeightPts = positions.qrHeight * 2.83465;
   
   // Font mapping
   let fontName, boldFontName;
@@ -401,9 +426,6 @@ export const generateEPSLayout = (data: ExcelRow[], options: Partial<GenerationO
     const x = padding + col * (boxWidth + padding);
     const y = pageHeight - (padding + (rowNum + 1) * (boxHeight + padding));
     
-    const qrX = x + (boxWidth * 0.6); // Move QR code to the right position (60%)
-    const textX = x + (boxWidth * 0.25); // Center text in the left half
-    
     epsContent += `
 % QR Code and Label ${index + 1}
 GS
@@ -421,9 +443,9 @@ GS
   CP
   S
   
-  % QR code on right side (centered vertically) with custom color
+  % QR code positioned using calculated positions
   ${qrColorRGB} setrgbcolor
-  ${qrX} ${y + (boxHeight - qrHeight) / 2} ${qrWidth} ${qrHeight} RF
+  ${x + qrXPts} ${y + (boxHeight - qrHeightPts) / 2} ${qrWidthPts} ${qrHeightPts} RF
   
   % Count number outside the box with custom color
   ${countColorRGB} setrgbcolor
@@ -431,11 +453,11 @@ GS
   ${x - 10} ${y + boxHeight / 2} M
   (${count}.) SH
   
-  % Serial number on left side with custom color
+  % Serial number positioned using calculated positions
   ${serialColorRGB} setrgbcolor
   /${boldFontName} ${opts.fontSize + 2} SF
-  ${textX} ${y + (boxHeight / 2)} M
-  (${serial}) dup stringwidth pop 2 div neg 0 rmoveto SH
+  ${x + serialXPts} ${y + (boxHeight / 2)} M
+  (${serial}) SH
 GR
 `;
   });
@@ -585,6 +607,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   
   // Merge with default options
   const opts: GenerationOptions = { ...defaultOptions, ...options };
+  const positions = calculateContentPositions(opts);
   
   // Get page dimensions
   const pageDims = getPageDimensions(opts.pageSize, opts.orientation);
@@ -747,7 +770,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
           pdf.text(`${count}.`, x - 5, y + opts.boxHeight / 2, { align: 'right', baseline: 'middle' });
         }
         
-        // Add serial number in specified color in the center of the left half of the box
+        // Add serial number in specified color using calculated position
         pdf.setTextColor(...serialColorRGB); // Serial color
         pdf.setFontSize(opts.fontSize);
         try {
@@ -756,29 +779,16 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
           pdf.setFont('helvetica', fontStyle);
         }
         
-        // Center the serial text in the left half of the box
-        const textWidth = pdf.getStringUnitWidth(serial) * pdf.getFontSize() / pdf.internal.scaleFactor;
-        const leftHalfCenter = x + (opts.boxWidth * 0.25); // Center of the left half (25%)
-        const textX = leftHalfCenter - (textWidth / 2);
+        // Position serial number using calculated positions
         const textY = y + (opts.boxHeight / 2); // Centered vertically
+        pdf.text(serial, x + positions.serialX, textY, { baseline: 'middle' });
         
-        pdf.text(serial, textX, textY, { baseline: 'middle' });
-        
-        // Calculate QR code size and position (right side of box, centered)
-        let qrWidth, qrHeight;
-        if (opts.qrCodeWidth && opts.qrCodeHeight) {
-          qrWidth = opts.qrCodeWidth;
-          qrHeight = opts.qrCodeHeight;
-        } else {
-          qrWidth = qrHeight = opts.boxHeight * opts.qrCodeSize;
-        }
-        
-        const qrX = x + (opts.boxWidth * 0.6); // Positioned at 60% of box width
-        const qrY = y + (opts.boxHeight - qrHeight) / 2; // Centered vertically
+        // Add QR code using calculated position
+        const qrY = y + (opts.boxHeight - positions.qrHeight) / 2; // Centered vertically
         
         // Add QR code if we have a data URL
         if (dataUrl) {
-          pdf.addImage(dataUrl, 'PNG', qrX, qrY, qrWidth, qrHeight);
+          pdf.addImage(dataUrl, 'PNG', x + positions.qrX, qrY, positions.qrWidth, positions.qrHeight);
         }
       });
       
