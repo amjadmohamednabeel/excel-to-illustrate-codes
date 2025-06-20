@@ -252,19 +252,11 @@ export const generateIllustratorLayout = (data: ExcelRow[], options: Partial<Gen
         <rect width="${opts.boxWidth}" height="${opts.boxHeight}" fill="white" stroke="${opts.boxBorderColor}" stroke-width="0.5" />
     `;
     
-    // Position count based on countOutsideBox setting
+    // If count is outside the box, position it to the left of the box in specified color
     if (opts.countOutsideBox) {
-      // Original position - to the left of the box
       svgContent += `
         <text x="${-5}" y="${opts.boxHeight / 2}" font-family="${opts.fontFamily.includes('denso') ? 'OCR-B, monospace' : opts.fontFamily}" font-size="${opts.fontSize * 1.3}" fill="${opts.countColor}" text-anchor="end" dominant-baseline="middle">
           ${count}.
-        </text>
-      `;
-    } else {
-      // New position - at the top of the box
-      svgContent += `
-        <text x="${5}" y="${-5}" font-family="${opts.fontFamily.includes('denso') ? 'OCR-B, monospace' : opts.fontFamily}" font-size="${opts.fontSize * 1.3}" fill="${opts.countColor}" text-anchor="start" dominant-baseline="text-after-edge">
-          ${count}
         </text>
       `;
     }
@@ -433,26 +425,12 @@ GS
   ${qrColorRGB} setrgbcolor
   ${qrX} ${y + (boxHeight - qrHeight) / 2} ${qrWidth} ${qrHeight} RF
   
-  % Count number positioning based on countOutsideBox setting
+  % Count number outside the box with custom color
   ${countColorRGB} setrgbcolor
   /${boldFontName} ${opts.fontSize + 2} SF
-`;
-
-    if (opts.countOutsideBox) {
-      // Original position - outside the box on the left
-      epsContent += `
   ${x - 10} ${y + boxHeight / 2} M
   (${count}.) SH
-`;
-    } else {
-      // New position - at the top of the box
-      epsContent += `
-  ${x + 5} ${y + boxHeight + 5} M
-  (${count}) SH
-`;
-    }
-
-    epsContent += `
+  
   % Serial number on left side with custom color
   ${serialColorRGB} setrgbcolor
   /${boldFontName} ${opts.fontSize + 2} SF
@@ -462,7 +440,7 @@ GR
 `;
   });
 
-  // Only add footer information if showFooter is true
+  // Add footer information only if showFooter is true
   if (opts.showFooter !== false) {
     const footerSize = opts.footerFontSize || defaultOptions.footerFontSize;
     const qtyText = opts.customQty || `${data.length}`;
@@ -485,6 +463,119 @@ ${pageWidth - 20} 20 M
 
   epsContent += `\n%%EOF`;
   return epsContent;
+};
+
+// Generate QR code data URI for embedding in PDF
+export const generateQRCodeDataURI = async (text: string, options: Partial<GenerationOptions> = {}): Promise<string> => {
+  const opts = { ...defaultOptions, ...options };
+  try {
+    // Fix the QR code generation with the correct options format
+    const dataUrl = await QRCode.toDataURL(text, {
+      errorCorrectionLevel: 'M' as QRCode.QRCodeErrorCorrectionLevel,
+      margin: 1,
+      width: 200,
+      color: {
+        dark: opts.qrCodeColor || defaultOptions.qrCodeColor!,
+        light: opts.qrCodeTransparentBg ? '#0000' : (opts.qrCodeBgColor || defaultOptions.qrCodeBgColor!)
+      }
+    });
+    return dataUrl;
+  } catch (error) {
+    console.error('Error generating QR code data URI:', error);
+    // Return a placeholder for error cases
+    return '';
+  }
+};
+
+// Calculate layout based on options
+const calculateLayout = (options: GenerationOptions) => {
+  const pageDims = getPageDimensions(options.pageSize, options.orientation);
+  const boxSpacing = options.boxSpacing || 10; // Use box spacing from options
+  
+  // If manual values are provided, use them
+  if (options.boxesPerRow && options.boxesPerColumn) {
+    return {
+      boxesPerRow: options.boxesPerRow,
+      boxesPerColumn: options.boxesPerColumn,
+      boxesPerPage: options.boxesPerRow * options.boxesPerColumn,
+      horizontalMargin: (pageDims.width - ((options.boxesPerRow * options.boxWidth) + ((options.boxesPerRow - 1) * boxSpacing))) / 2,
+      verticalMargin: (pageDims.height - ((options.boxesPerColumn * options.boxHeight) + ((options.boxesPerColumn - 1) * boxSpacing))) / 2
+    };
+  }
+  
+  // Otherwise calculate automatically
+  const boxesPerRow = Math.floor((pageDims.width - boxSpacing) / (options.boxWidth + boxSpacing));
+  const boxesPerColumn = Math.floor((pageDims.height - boxSpacing) / (options.boxHeight + boxSpacing));
+  
+  return {
+    boxesPerRow,
+    boxesPerColumn,
+    boxesPerPage: boxesPerRow * boxesPerColumn,
+    horizontalMargin: (pageDims.width - ((boxesPerRow * options.boxWidth) + ((boxesPerRow - 1) * boxSpacing))) / 2,
+    verticalMargin: (pageDims.height - ((boxesPerColumn * options.boxHeight) + ((boxesPerColumn - 1) * boxSpacing))) / 2
+  };
+};
+
+// Helper function to check if DENSO font is loaded
+const isDensoFontLoaded = (): boolean => {
+  const densoFontInfo = localStorage.getItem('denso-custom-font');
+  return densoFontInfo ? JSON.parse(densoFontInfo).loaded : false;
+};
+
+// Helper function to get DENSO font data
+const getDensoFontData = (): { name: string; base64: string } | null => {
+  const densoFontInfo = localStorage.getItem('denso-custom-font');
+  if (!densoFontInfo) return null;
+  
+  try {
+    const fontData = JSON.parse(densoFontInfo);
+    if (fontData.loaded && fontData.base64Data) {
+      return {
+        name: fontData.name,
+        base64: fontData.base64Data
+      };
+    }
+  } catch (error) {
+    console.error('Error parsing DENSO font data:', error);
+  }
+  
+  return null;
+};
+
+// Simplified helper function to convert font file to base64 for jsPDF
+const loadFontAsBase64 = async (fontName: string): Promise<string | null> => {
+  // First, try to get the custom DENSO font from localStorage
+  const densoFontData = getDensoFontData();
+  if (densoFontData && densoFontData.name === fontName) {
+    console.log('Using stored DENSO font base64 data for PDF');
+    return densoFontData.base64;
+  }
+  
+  // If it's a public DENSO font, try to load it from the public directory
+  const fontMap: Record<string, string> = {
+    'denso-regular': 'DENSO-Regular',
+    'denso-bold-real': 'DENSO-Bold',
+    'denso-light': 'Denso Light',
+    'denso-bold-italic': 'Denso Bold Italic',
+    'denso-light-italic': 'Denso Light Italic'
+  };
+  
+  const publicFontName = fontMap[fontName];
+  if (publicFontName) {
+    try {
+      console.log(`Loading public DENSO font: ${publicFontName}`);
+      const fontResponse = await fetch(`/Denso Fonts/${publicFontName}.otf`);
+      if (fontResponse.ok) {
+        const arrayBuffer = await fontResponse.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        return base64;
+      }
+    } catch (error) {
+      console.warn('Could not load public DENSO font:', error);
+    }
+  }
+  
+  return null;
 };
 
 // Generate PDF version with improved layout
@@ -644,21 +735,16 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
         pdf.setLineWidth(0.2);
         pdf.rect(x, y, opts.boxWidth, opts.boxHeight);
         
-        // Add count number in specified color based on position setting
-        pdf.setTextColor(...countColorRGB); // Count color
-        pdf.setFontSize(10);
-        try {
-          pdf.setFont(font, 'bold');
-        } catch {
-          pdf.setFont('helvetica', 'bold');
-        }
-        
+        // Add count number in specified color outside the box
         if (opts.countOutsideBox) {
-          // Original position - outside the box on the left
+          pdf.setTextColor(...countColorRGB); // Count color
+          pdf.setFontSize(10);
+          try {
+            pdf.setFont(font, 'bold');
+          } catch {
+            pdf.setFont('helvetica', 'bold');
+          }
           pdf.text(`${count}.`, x - 5, y + opts.boxHeight / 2, { align: 'right', baseline: 'middle' });
-        } else {
-          // New position - at the top of the box
-          pdf.text(`${count}`, x + 2, y - 2, { align: 'left', baseline: 'bottom' });
         }
         
         // Add serial number in specified color in the center of the left half of the box
@@ -728,97 +814,6 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   }
   
   return pdf.output('blob');
-};
-
-// Helper function to calculate layout based on options
-const calculateLayout = (options: GenerationOptions) => {
-  const pageDims = getPageDimensions(options.pageSize, options.orientation);
-  const boxSpacing = options.boxSpacing || 10; // Use box spacing from options
-  
-  // If manual values are provided, use them
-  if (options.boxesPerRow && options.boxesPerColumn) {
-    return {
-      boxesPerRow: options.boxesPerRow,
-      boxesPerColumn: options.boxesPerColumn,
-      boxesPerPage: options.boxesPerRow * options.boxesPerColumn,
-      horizontalMargin: (pageDims.width - ((options.boxesPerRow * options.boxWidth) + ((options.boxesPerRow - 1) * boxSpacing))) / 2,
-      verticalMargin: (pageDims.height - ((options.boxesPerColumn * options.boxHeight) + ((options.boxesPerColumn - 1) * boxSpacing))) / 2
-    };
-  }
-  
-  // Otherwise calculate automatically
-  const boxesPerRow = Math.floor((pageDims.width - boxSpacing) / (options.boxWidth + boxSpacing));
-  const boxesPerColumn = Math.floor((pageDims.height - boxSpacing) / (options.boxHeight + boxSpacing));
-  
-  return {
-    boxesPerRow,
-    boxesPerColumn,
-    boxesPerPage: boxesPerRow * boxesPerColumn,
-    horizontalMargin: (pageDims.width - ((boxesPerRow * options.boxWidth) + ((boxesPerRow - 1) * boxSpacing))) / 2,
-    verticalMargin: (pageDims.height - ((boxesPerColumn * options.boxHeight) + ((boxesPerColumn - 1) * boxSpacing))) / 2
-  };
-};
-
-// Helper function to check if DENSO font is loaded
-const isDensoFontLoaded = (): boolean => {
-  const densoFontInfo = localStorage.getItem('denso-custom-font');
-  return densoFontInfo ? JSON.parse(densoFontInfo).loaded : false;
-};
-
-// Helper function to get DENSO font data
-const getDensoFontData = (): { name: string; base64: string } | null => {
-  const densoFontInfo = localStorage.getItem('denso-custom-font');
-  if (!densoFontInfo) return null;
-  
-  try {
-    const fontData = JSON.parse(densoFontInfo);
-    if (fontData.loaded && fontData.base64Data) {
-      return {
-        name: fontData.name,
-        base64: fontData.base64Data
-      };
-    }
-  } catch (error) {
-    console.error('Error parsing DENSO font data:', error);
-  }
-  
-  return null;
-};
-
-// Simplified helper function to convert font file to base64 for jsPDF
-const loadFontAsBase64 = async (fontName: string): Promise<string | null> => {
-  // First, try to get the custom DENSO font from localStorage
-  const densoFontData = getDensoFontData();
-  if (densoFontData && densoFontData.name === fontName) {
-    console.log('Using stored DENSO font base64 data for PDF');
-    return densoFontData.base64;
-  }
-  
-  // If it's a public DENSO font, try to load it from the public directory
-  const fontMap: Record<string, string> = {
-    'denso-regular': 'DENSO-Regular',
-    'denso-bold-real': 'DENSO-Bold',
-    'denso-light': 'Denso Light',
-    'denso-bold-italic': 'Denso Bold Italic',
-    'denso-light-italic': 'Denso Light Italic'
-  };
-  
-  const publicFontName = fontMap[fontName];
-  if (publicFontName) {
-    try {
-      console.log(`Loading public DENSO font: ${publicFontName}`);
-      const fontResponse = await fetch(`/Denso Fonts/${publicFontName}.otf`);
-      if (fontResponse.ok) {
-        const arrayBuffer = await fontResponse.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-        return base64;
-      }
-    } catch (error) {
-      console.warn('Could not load public DENSO font:', error);
-    }
-  }
-  
-  return null;
 };
 
 // Generate the illustrator-ready file in the requested format (EPS or PDF)
