@@ -95,7 +95,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [boxesPerRow, setBoxesPerRow] = useState<number | null>(null);
   const [boxesPerColumn, setBoxesPerColumn] = useState<number | null>(null);
   const [boxesPerPage, setBoxesPerPage] = useState<number>(25);
-  const [countOutsideBox, setCountOutsideBox] = useState(true);
+  const [countOutsideBox, setCountOutsideBox] = useState(false); // Changed to false for top positioning
   
   const [showFooter, setShowFooter] = useState(true);
   const [customQty, setCustomQty] = useState<string>("");
@@ -291,7 +291,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setFontFamily('denso-regular');
     setBoxesPerRow(null);
     setBoxesPerColumn(null);
-    setCountOutsideBox(true);
+    setCountOutsideBox(false);
     setShowFooter(true);
     setCustomQty("");
     setFooterFontSize(12);
@@ -426,9 +426,17 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     
                     return (
                       <div key={index} className="relative">
-                        <div className="absolute -left-6 top-1/2 transform -translate-y-1/2 text-xs font-bold" style={{ color: countColor }}>
-                          {count}.
-                        </div>
+                        {countOutsideBox ? (
+                          // Count on the left side (original position)
+                          <div className="absolute -left-6 top-1/2 transform -translate-y-1/2 text-xs font-bold" style={{ color: countColor }}>
+                            {count}.
+                          </div>
+                        ) : (
+                          // Count at the top of the box
+                          <div className="absolute left-2 -top-4 text-xs font-bold" style={{ color: countColor }}>
+                            {count}
+                          </div>
+                        )}
                         
                         <div className="border p-2 flex flex-row justify-between items-center" style={{ 
                           width: '120px', 
@@ -610,7 +618,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="count-position" className="font-medium">
-                          Place Count Outside Box
+                          Place Count Outside Box (Left Side)
                         </Label>
                         <Switch
                           id="count-position"
@@ -619,7 +627,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                         />
                       </div>
                       <p className="text-xs text-gray-500">
-                        When enabled, the count number will be placed outside the box on the left (recommended)
+                        When enabled, count numbers appear on the left side. When disabled, they appear at the top of each box.
                       </p>
                     </div>
                   </div>
