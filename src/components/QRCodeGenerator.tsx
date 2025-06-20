@@ -73,6 +73,42 @@ const colorPresets = {
   footerInfo: ['#00AA50', '#000000', '#0000FF', '#FF0000', '#FFA500', '#800080'],
 };
 
+// Precise positioning constants (in mm)
+const POSITIONING = {
+  BOX_TO_SERIAL_GAP: 3.1,      // Gap from box line to Unit Serial Number
+  SERIAL_TO_QR_GAP: 6.3,       // Gap from Unit Serial Number to QR Code
+  QR_TO_BOX_GAP: 2.57,         // Gap from QR Code to box line
+};
+
+// Calculate positions based on precise measurements for preview
+const calculatePreviewPositions = (boxWidth: number, boxHeight: number, qrCodeSize: number) => {
+  // Convert mm to pixels for preview (assuming 1mm = 3.78px for 96 DPI)
+  const scale = 3.78;
+  const boxWidthPx = boxWidth * scale;
+  const qrWidthPx = qrCodeSize * scale;
+  
+  // Calculate available space for serial number
+  const totalHorizontalSpace = boxWidthPx - (POSITIONING.BOX_TO_SERIAL_GAP * scale) - (POSITIONING.SERIAL_TO_QR_GAP * scale) - qrWidthPx - (POSITIONING.QR_TO_BOX_GAP * scale);
+  
+  // Position calculations in pixels
+  const serialX = POSITIONING.BOX_TO_SERIAL_GAP * scale;
+  const serialWidth = totalHorizontalSpace;
+  const qrX = serialX + serialWidth + (POSITIONING.SERIAL_TO_QR_GAP * scale);
+  
+  return {
+    serial: {
+      x: serialX,
+      width: serialWidth,
+      centerX: serialX + serialWidth / 2
+    },
+    qr: {
+      x: qrX,
+      width: qrWidthPx,
+      centerX: qrX + qrWidthPx / 2
+    }
+  };
+};
+
 const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -424,27 +460,49 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     const qrText = row['QR Code Text'] || row.qrCodeText || serial;
                     const count = row['Count'] || row.count || (actualIndex + 1).toString();
                     
+                    // Calculate precise positions for preview
+                    const currentQrSize = useCustomQRDimensions ? qrCodeWidth : (boxHeight * (qrCodeSize / 100));
+                    const positions = calculatePreviewPositions(boxWidth, boxHeight, currentQrSize);
+                    
                     return (
                       <div key={index} className="relative">
                         <div className="absolute -left-6 top-1/2 transform -translate-y-1/2 text-xs font-bold" style={{ color: countColor }}>
                           {count}.
                         </div>
                         
-                        <div className="border p-2 flex flex-row justify-between items-center" style={{ 
+                        <div className="border p-2 relative" style={{ 
                           width: '120px', 
                           height: '75px',
                           borderColor: boxBorderColor
                         }}>
-                          <div className="flex items-center justify-center w-1/2 h-full">
-                            <div className="text-xs font-bold text-center" style={{ color: serialColor }}>
-                              {serial}
-                            </div>
+                          {/* Serial number positioned with precise measurements */}
+                          <div 
+                            className="absolute flex items-center justify-center text-xs font-bold text-center" 
+                            style={{ 
+                              left: `${(positions.serial.x / (boxWidth * 3.78)) * 120}px`,
+                              width: `${(positions.serial.width / (boxWidth * 3.78)) * 120}px`,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              color: serialColor 
+                            }}
+                          >
+                            {serial}
                           </div>
                           
-                          <div className="flex justify-center items-center w-1/2 h-full">
+                          {/* QR code positioned with precise measurements */}
+                          <div 
+                            className="absolute flex justify-center items-center"
+                            style={{
+                              left: `${(positions.qr.x / (boxWidth * 3.78)) * 120}px`,
+                              width: `${(positions.qr.width / (boxWidth * 3.78)) * 120}px`,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              height: `${(positions.qr.width / (boxWidth * 3.78)) * 120}px`,
+                            }}
+                          >
                             <QRCodeSVG 
                               value={qrText} 
-                              size={40} 
+                              size={Math.min(40, (positions.qr.width / (boxWidth * 3.78)) * 120)} 
                               fgColor={qrCodeColor}
                               bgColor={qrCodeTransparentBg ? "transparent" : qrCodeBgColor}
                             />
