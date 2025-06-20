@@ -703,7 +703,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                           <Input
                             type="number"
                             min="0.01"
-                            max="10"
+                            max="100"
                             step="0.01"
                             value={serialToBoxGap.toFixed(2)}
                             onChange={(e) => setSerialToBoxGap(parseFloat(e.target.value) || 0.01)}
@@ -713,7 +713,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                         <Slider
                           value={[serialToBoxGap]}
                           min={0.01}
-                          max={10}
+                          max={100}
                           step={0.01}
                           onValueChange={(value) => setSerialToBoxGap(parseFloat(value[0].toFixed(2)))}
                         />
@@ -728,7 +728,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                           <Input
                             type="number"
                             min="0.01"
-                            max="20"
+                            max="100"
                             step="0.01"
                             value={serialToQrGap.toFixed(2)}
                             onChange={(e) => setSerialToQrGap(parseFloat(e.target.value) || 0.01)}
@@ -738,7 +738,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                         <Slider
                           value={[serialToQrGap]}
                           min={0.01}
-                          max={20}
+                          max={100}
                           step={0.01}
                           onValueChange={(value) => setSerialToQrGap(parseFloat(value[0].toFixed(2)))}
                         />
@@ -753,7 +753,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                           <Input
                             type="number"
                             min="0.01"
-                            max="10"
+                            max="100"
                             step="0.01"
                             value={qrToBoxGap.toFixed(2)}
                             onChange={(e) => setQrToBoxGap(parseFloat(e.target.value) || 0.01)}
@@ -763,7 +763,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                         <Slider
                           value={[qrToBoxGap]}
                           min={0.01}
-                          max={10}
+                          max={100}
                           step={0.01}
                           onValueChange={(value) => setQrToBoxGap(parseFloat(value[0].toFixed(2)))}
                         />
