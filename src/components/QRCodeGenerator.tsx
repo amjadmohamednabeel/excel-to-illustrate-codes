@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from '@/components/ui/use-toast';
 import { ExcelRow } from '@/utils/excelParser';
 import { downloadIllustratorFiles, GenerationOptions } from '@/utils/qrCodeGenerator';
@@ -97,9 +97,9 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [boxesPerPage, setBoxesPerPage] = useState<number>(25);
   const [countOutsideBox, setCountOutsideBox] = useState(true);
   
-  // New positioning options
-  const [serialToBoxGap, setSerialToBoxGap] = useState(3.1);
-  const [serialToQrGap, setSerialToQrGap] = useState(6.3);
+  // New positioning options with higher precision
+  const [serialToBoxGap, setSerialToBoxGap] = useState(3.10);
+  const [serialToQrGap, setSerialToQrGap] = useState(6.30);
   const [qrToBoxGap, setQrToBoxGap] = useState(2.57);
   
   const [showFooter, setShowFooter] = useState(true);
@@ -212,7 +212,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
       : { width: height, height: width };
   };
 
-  // Calculate positions based on gaps
+  // Calculate positions based on gaps with higher precision
   const calculatePositions = () => {
     const serialX = serialToBoxGap;
     const qrX = serialX + serialToQrGap;
@@ -317,8 +317,8 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setBoxesPerRow(null);
     setBoxesPerColumn(null);
     setCountOutsideBox(true);
-    setSerialToBoxGap(3.1);
-    setSerialToQrGap(6.3);
+    setSerialToBoxGap(3.10);
+    setSerialToQrGap(6.30);
     setQrToBoxGap(2.57);
     setShowFooter(true);
     setCustomQty("");
@@ -689,24 +689,33 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     </div>
                   </div>
 
-                  {/* New Positioning Controls Section */}
+                  {/* Enhanced Positioning Controls Section */}
                   <div className="space-y-3 border-t pt-3">
                     <h3 className="text-sm font-medium">Content Positioning</h3>
                     <p className="text-xs text-gray-500">
-                      Control the precise positioning of serial number and QR code within each box
+                      Control the precise positioning of serial number and QR code within each box (with 0.01mm precision)
                     </p>
                     
                     <div className="grid grid-cols-1 gap-4">
                       <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <Label>Box Line to Serial Gap: {serialToBoxGap} mm</Label>
+                        <div className="flex justify-between items-center">
+                          <Label>Box Line to Serial Gap: {serialToBoxGap.toFixed(2)} mm</Label>
+                          <Input
+                            type="number"
+                            min="0.01"
+                            max="10"
+                            step="0.01"
+                            value={serialToBoxGap.toFixed(2)}
+                            onChange={(e) => setSerialToBoxGap(parseFloat(e.target.value) || 0.01)}
+                            className="w-20 h-8 text-xs"
+                          />
                         </div>
                         <Slider
                           value={[serialToBoxGap]}
-                          min={0.5}
+                          min={0.01}
                           max={10}
-                          step={0.1}
-                          onValueChange={(value) => setSerialToBoxGap(value[0])}
+                          step={0.01}
+                          onValueChange={(value) => setSerialToBoxGap(parseFloat(value[0].toFixed(2)))}
                         />
                         <p className="text-xs text-gray-500">
                           Distance from left box edge to serial number
@@ -714,15 +723,24 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                       </div>
                       
                       <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <Label>Serial to QR Gap: {serialToQrGap} mm</Label>
+                        <div className="flex justify-between items-center">
+                          <Label>Serial to QR Gap: {serialToQrGap.toFixed(2)} mm</Label>
+                          <Input
+                            type="number"
+                            min="0.01"
+                            max="20"
+                            step="0.01"
+                            value={serialToQrGap.toFixed(2)}
+                            onChange={(e) => setSerialToQrGap(parseFloat(e.target.value) || 0.01)}
+                            className="w-20 h-8 text-xs"
+                          />
                         </div>
                         <Slider
                           value={[serialToQrGap]}
-                          min={1}
+                          min={0.01}
                           max={20}
-                          step={0.1}
-                          onValueChange={(value) => setSerialToQrGap(value[0])}
+                          step={0.01}
+                          onValueChange={(value) => setSerialToQrGap(parseFloat(value[0].toFixed(2)))}
                         />
                         <p className="text-xs text-gray-500">
                           Distance from serial number to QR code
@@ -730,15 +748,24 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                       </div>
                       
                       <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <Label>QR to Box Line Gap: {qrToBoxGap} mm</Label>
+                        <div className="flex justify-between items-center">
+                          <Label>QR to Box Line Gap: {qrToBoxGap.toFixed(2)} mm</Label>
+                          <Input
+                            type="number"
+                            min="0.01"
+                            max="10"
+                            step="0.01"
+                            value={qrToBoxGap.toFixed(2)}
+                            onChange={(e) => setQrToBoxGap(parseFloat(e.target.value) || 0.01)}
+                            className="w-20 h-8 text-xs"
+                          />
                         </div>
                         <Slider
                           value={[qrToBoxGap]}
-                          min={0.5}
+                          min={0.01}
                           max={10}
-                          step={0.1}
-                          onValueChange={(value) => setQrToBoxGap(value[0])}
+                          step={0.01}
+                          onValueChange={(value) => setQrToBoxGap(parseFloat(value[0].toFixed(2)))}
                         />
                         <p className="text-xs text-gray-500">
                           Distance from QR code to right box edge
@@ -748,12 +775,17 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                     
                     <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
                       <p className="text-sm text-blue-800">
-                        📐 Total content width: {positions.totalContentWidth.toFixed(1)}mm 
+                        📐 Total content width: {positions.totalContentWidth.toFixed(2)}mm 
                         {positions.isValidLayout ? 
-                          ` ✓ (fits in ${boxWidth}mm box)` : 
-                          ` ⚠️ (exceeds ${boxWidth}mm box width)`
+                          ` ✓ (fits in ${boxWidth.toFixed(2)}mm box)` : 
+                          ` ⚠️ (exceeds ${boxWidth.toFixed(2)}mm box width)`
                         }
                       </p>
+                      <div className="mt-2 text-xs text-blue-700">
+                        <div>• Serial starts at: {positions.serialX.toFixed(2)}mm</div>
+                        <div>• QR starts at: {positions.qrX.toFixed(2)}mm</div>
+                        <div>• QR ends at: {(positions.qrX + (useCustomQRDimensions ? qrCodeWidth : boxHeight * (qrCodeSize / 100))).toFixed(2)}mm</div>
+                      </div>
                     </div>
                   </div>
 
