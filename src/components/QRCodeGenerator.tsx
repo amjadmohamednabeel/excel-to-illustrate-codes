@@ -303,6 +303,28 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     return data.slice(start, end);
   };
 
+  // Calculate actual layout dimensions for PDF-like preview
+  const getPreviewLayout = () => {
+    const pageDimensions = getPageDimensions();
+    const actualBoxesPerRow = boxesPerRow || Math.floor((pageDimensions.width - boxSpacing) / (boxWidth + boxSpacing));
+    const actualBoxesPerColumn = boxesPerColumn || Math.floor((pageDimensions.height - boxSpacing) / (boxHeight + boxSpacing));
+    
+    // Scale factor to fit preview in container (max 600px width)
+    const maxPreviewWidth = 600;
+    const scaleFactor = Math.min(maxPreviewWidth / pageDimensions.width, 1);
+    
+    return {
+      pageWidth: pageDimensions.width * scaleFactor,
+      pageHeight: pageDimensions.height * scaleFactor,
+      boxWidth: boxWidth * scaleFactor,
+      boxHeight: boxHeight * scaleFactor,
+      boxSpacing: boxSpacing * scaleFactor,
+      boxesPerRow: actualBoxesPerRow,
+      boxesPerColumn: actualBoxesPerColumn,
+      scaleFactor
+    };
+  };
+
   const resetToDefaults = () => {
     setBoxWidth(50);
     setBoxHeight(30);
@@ -399,7 +421,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
               onClick={togglePreview} 
               className="mb-2"
             >
-              {showPreview ? "Hide Preview" : "Show Layout Preview"}
+              {showPreview ? "Hide PDF Preview" : "Show PDF Preview"}
             </Button>
             
             <Collapsible 
@@ -417,7 +439,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
           </div>
           
           {showPreview && data.length > 0 && (
-            <div className="w-full space-y-2">
+            <div className="w-full space-y-4">
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mb-2">
                   <Button 
@@ -428,7 +450,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                   >
                     Previous Page
                   </Button>
-                  <span className="text-sm">
+                  <span className="text-sm font-medium">
                     Page {previewPage + 1} of {totalPages}
                   </span>
                   <Button 
@@ -442,102 +464,137 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                 </div>
               )}
               
-              <div className="overflow-auto max-h-[400px] border rounded p-4 w-full">
-                <div className="grid gap-4" style={{ 
-                  gridTemplateColumns: `repeat(auto-fill, minmax(120px, 1fr))`,
+              <div className="flex justify-center">
+                <div className="border-2 border-gray-300 shadow-lg bg-white" style={{
+                  width: `${getPreviewLayout().pageWidth}px`,
+                  height: `${getPreviewLayout().pageHeight}px`,
+                  position: 'relative'
                 }}>
-                  {getCurrentPageItems().map((row, index) => {
-                    const actualIndex = previewPage * boxesPerPage + index;
-                    const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${actualIndex}`;
-                    const qrText = row['QR Code Text'] || row.qrCodeText || serial;
-                    const count = row['Count'] || row.count || (actualIndex + 1).toString();
-                    
-                    // Calculate preview positions (scaled down for preview)
-                    const previewScale = 120 / boxWidth; // Scale factor for preview
-                    const previewSerialX = serialToBoxGap * previewScale;
-                    const previewQrX = (serialToBoxGap + serialToQrGap) * previewScale;
-                    const previewQrSize = useCustomQRDimensions ? 
-                      Math.min(qrCodeWidth, qrCodeHeight) * previewScale : 
-                      (boxHeight * (qrCodeSize / 100)) * previewScale;
-                    
-                    return (
-                      <div key={index} className="relative">
-                        {countOutsideBox && (
-                          <div className="absolute -left-6 top-1/2 transform -translate-y-1/2 text-xs font-bold" style={{ color: countColor }}>
-                            {count}.
-                          </div>
-                        )}
-                        
-                        <div className="border relative" style={{ 
-                          width: '120px', 
-                          height: `${(boxHeight / boxWidth) * 120}px`,
-                          borderColor: boxBorderColor
-                        }}>
-                          {/* Serial Number */}
-                          <div 
-                            className="absolute text-xs font-bold flex items-center"
-                            style={{ 
-                              left: `${previewSerialX}px`,
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              color: serialColor,
-                              fontSize: `${fontSize * previewScale}px`
-                            }}
-                          >
-                            {serial}
-                          </div>
+                  {/* PDF-like page content */}
+                  <div className="absolute inset-0" style={{ padding: `${getPreviewLayout().boxSpacing}px` }}>
+                    {getCurrentPageItems().map((row, index) => {
+                      const actualIndex = previewPage * boxesPerPage + index;
+                      const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${actualIndex}`;
+                      const qrText = row['QR Code Text'] || row.qrCodeText || serial;
+                      const count = row['Count'] || row.count || (actualIndex + 1).toString();
+                      
+                      const layout = getPreviewLayout();
+                      const rowIndex = Math.floor(index / layout.boxesPerRow);
+                      const colIndex = index % layout.boxesPerRow;
+                      
+                      const boxX = colIndex * (layout.boxWidth + layout.boxSpacing);
+                      const boxY = rowIndex * (layout.boxHeight + layout.boxSpacing);
+                      
+                      // Calculate scaled positions
+                      const scaledSerialX = serialToBoxGap * layout.scaleFactor;
+                      const scaledQrX = (serialToBoxGap + serialToQrGap) * layout.scaleFactor;
+                      const scaledQrSize = useCustomQRDimensions ? 
+                        Math.min(qrCodeWidth, qrCodeHeight) * layout.scaleFactor : 
+                        (boxHeight * (qrCodeSize / 100)) * layout.scaleFactor;
+                      
+                      return (
+                        <div key={index}>
+                          {/* Count outside box */}
+                          {countOutsideBox && (
+                            <div 
+                              className="absolute text-xs font-bold"
+                              style={{ 
+                                left: `${boxX - 20 * layout.scaleFactor}px`,
+                                top: `${boxY + layout.boxHeight / 2}px`,
+                                transform: 'translateY(-50%)',
+                                color: countColor,
+                                fontSize: `${fontSize * layout.scaleFactor}px`
+                              }}
+                            >
+                              {count}.
+                            </div>
+                          )}
                           
-                          {/* QR Code */}
+                          {/* Box */}
                           <div 
-                            className="absolute flex items-center justify-center"
-                            style={{
-                              left: `${previewQrX}px`,
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              width: `${previewQrSize}px`,
-                              height: `${previewQrSize}px`
+                            className="absolute border"
+                            style={{ 
+                              left: `${boxX}px`,
+                              top: `${boxY}px`,
+                              width: `${layout.boxWidth}px`,
+                              height: `${layout.boxHeight}px`,
+                              borderColor: boxBorderColor
                             }}
                           >
-                            <QRCodeSVG 
-                              value={qrText} 
-                              size={previewQrSize} 
-                              fgColor={qrCodeColor}
-                              bgColor={qrCodeTransparentBg ? "transparent" : qrCodeBgColor}
-                            />
+                            {/* Serial Number */}
+                            <div 
+                              className="absolute flex items-center font-bold"
+                              style={{ 
+                                left: `${scaledSerialX}px`,
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                color: serialColor,
+                                fontSize: `${fontSize * layout.scaleFactor}px`,
+                                fontFamily: fontFamily.includes('denso') ? 'DENSO-Regular, monospace' : 'inherit'
+                              }}
+                            >
+                              {serial}
+                            </div>
+                            
+                            {/* QR Code */}
+                            <div 
+                              className="absolute flex items-center justify-center"
+                              style={{
+                                left: `${scaledQrX}px`,
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                width: `${scaledQrSize}px`,
+                                height: `${scaledQrSize}px`
+                              }}
+                            >
+                              <QRCodeSVG 
+                                value={qrText} 
+                                size={scaledQrSize} 
+                                fgColor={qrCodeColor}
+                                bgColor={qrCodeTransparentBg ? "transparent" : qrCodeBgColor}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Footer */}
+                    {showFooter && (
+                      <div 
+                        className="absolute bottom-0 left-0 right-0 flex justify-between items-end px-4 pb-4"
+                        style={{ fontSize: `${footerFontSize * getPreviewLayout().scaleFactor}px` }}
+                      >
+                        <span className="font-bold" style={{ color: footerQtyColor }}>
+                          Qty. - {getDisplayQty()} each
+                        </span>
+                        <div className="text-right">
+                          <div className="font-bold" style={{ color: footerInfoColor }}>
+                            Serial Number+QR code
+                          </div>
+                          <div className="font-bold" style={{ color: footerInfoColor }}>
+                            Sticker Size - {boxWidth} x {boxHeight}mm
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-                
-                {!positions.isValidLayout && (
-                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                    <p className="text-sm text-yellow-800">
-                      ⚠️ Warning: Content width ({positions.totalContentWidth.toFixed(1)}mm) exceeds box width ({boxWidth}mm). 
-                      Please adjust the gaps or box width.
-                    </p>
+                    )}
                   </div>
-                )}
-                
-                {showFooter && (
-                <div className="text-center mt-4 text-sm">
-                  <span className="font-bold" style={{
-                    fontSize: `${footerFontSize}px`,
-                    color: footerQtyColor
-                  }}>
-                    Qty. - {getDisplayQty()} each
-                  </span>
-                  <span className="float-right font-bold" style={{
-                    fontSize: `${footerFontSize}px`,
-                    color: footerInfoColor
-                  }}>
-                    Serial Number+QR code<br />
-                    Sticker Size - {boxWidth} x {boxHeight}mm
-                  </span>
                 </div>
-                )}
               </div>
+              
+              <div className="text-center text-sm text-gray-600">
+                <p>Preview shows actual PDF layout at scale • Page: {pageSize.toUpperCase()} {orientation}</p>
+                <p>Boxes: {getPreviewLayout().boxesPerRow} × {getPreviewLayout().boxesPerColumn} = {boxesPerPage} per page</p>
+              </div>
+              
+              {!positions.isValidLayout && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ Warning: Content width ({positions.totalContentWidth.toFixed(1)}mm) exceeds box width ({boxWidth}mm). 
+                    Please adjust the gaps or box width.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
