@@ -29,68 +29,83 @@ const FontUploader: React.FC<FontUploaderProps> = ({ onClose, onFontUploaded }) 
 
     setIsLoading(true);
     try {
-      // Convert font file to base64 immediately
+      // Convert font file to base64
       const arrayBuffer = await file.arrayBuffer();
       const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
       
       // Create a URL for the uploaded font file for DOM usage
       const fontUrl = URL.createObjectURL(file);
-      const fontName = `DENSO-${file.name.split('.')[0]}`;
+      const fontName = `Custom-${file.name.split('.')[0]}`;
+      const fontFamily = `custom-${file.name.split('.')[0].toLowerCase().replace(/\s+/g, '-')}`;
       
       // Create font-face CSS for immediate DOM usage
       const fontFace = new FontFace(fontName, `url(${fontUrl})`);
       await fontFace.load();
       document.fonts.add(fontFace);
 
-      // Update CSS custom properties for DENSO font
+      // Update CSS custom properties for custom font
       const style = document.createElement('style');
-      style.id = 'denso-custom-font';
+      style.id = `custom-font-${fontFamily}`;
       style.textContent = `
-        :root {
-          --denso-font-family: '${fontName}', 'IBM Plex Mono', 'Roboto Mono', 'Courier New', monospace;
+        @font-face {
+          font-family: '${fontName}';
+          src: url(${fontUrl});
+          font-weight: normal;
+          font-style: normal;
         }
-        .font-denso, .font-denso-bold {
-          font-family: var(--denso-font-family) !important;
-        }
-        .denso-corporate-font {
-          font-family: '${fontName}' !important;
+        .font-${fontFamily} {
+          font-family: '${fontName}', monospace !important;
         }
       `;
       
-      // Remove existing custom font style if any
-      const existingStyle = document.getElementById('denso-custom-font');
-      if (existingStyle) {
-        existingStyle.remove();
-      }
-      
       document.head.appendChild(style);
 
-      // Store font info in localStorage with base64 data for PDF generation
-      localStorage.setItem('denso-custom-font', JSON.stringify({
+      // Get existing uploaded fonts
+      const existingFonts = JSON.parse(localStorage.getItem('uploaded-fonts') || '[]');
+      
+      // Add new font to the list
+      const newFont = {
         name: fontName,
+        family: fontFamily,
         originalName: file.name,
         base64Data: base64,
         fileType: fileExtension,
-        loaded: true
-      }));
+        loaded: true,
+        uploadDate: new Date().toISOString()
+      };
+      
+      // Check if font already exists
+      const existingIndex = existingFonts.findIndex((f: any) => f.name === fontName);
+      if (existingIndex >= 0) {
+        existingFonts[existingIndex] = newFont;
+      } else {
+        existingFonts.push(newFont);
+      }
+
+      // Store updated fonts list
+      localStorage.setItem('uploaded-fonts', JSON.stringify(existingFonts));
+
+      // Maintain backward compatibility - also store as single font
+      localStorage.setItem('denso-custom-font', JSON.stringify(newFont));
 
       // Dispatch custom event to notify other components
-      window.dispatchEvent(new CustomEvent('denso-font-loaded', { 
-        detail: { fontName } 
+      window.dispatchEvent(new CustomEvent('font-uploaded', { 
+        detail: { fontName, fontFamily } 
       }));
 
       toast({
         title: "Success",
-        description: `DENSO corporate font "${file.name}" has been loaded successfully`,
+        description: `Font "${file.name}" has been uploaded successfully`,
       });
       
       // Notify parent component
       if (onFontUploaded) {
-        onFontUploaded(fontName);
+        onFontUploaded(fontFamily);
       }
       
       onClose();
     } catch (error) {
+      console.error('Font upload error:', error);
       toast({
         title: "Error",
         description: "Failed to load font file. Please check the file format.",
@@ -133,7 +148,7 @@ const FontUploader: React.FC<FontUploaderProps> = ({ onClose, onFontUploaded }) 
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <Card className="w-full max-w-md mx-4">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-lg">Upload DENSO Corporate Font</CardTitle>
+          <CardTitle className="text-lg">Upload Custom Font</CardTitle>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -153,7 +168,7 @@ const FontUploader: React.FC<FontUploaderProps> = ({ onClose, onFontUploaded }) 
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium text-gray-900">
-                  Drag and drop your DENSO corporate font file here
+                  Drag and drop your font file here
                 </p>
                 <p className="text-xs text-gray-500">
                   Supports .woff, .woff2, .ttf, .otf
@@ -183,7 +198,7 @@ const FontUploader: React.FC<FontUploaderProps> = ({ onClose, onFontUploaded }) 
             </div>
           </div>
           <div className="mt-4 text-xs text-gray-500">
-            <p><strong>Note:</strong> Once uploaded, the DENSO corporate font will be available in the QR code font options.</p>
+            <p><strong>Note:</strong> Once uploaded, the font will be available in the QR code font options.</p>
           </div>
         </CardContent>
       </Card>
