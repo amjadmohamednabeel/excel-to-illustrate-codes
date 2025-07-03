@@ -20,18 +20,16 @@ interface QRCodeGeneratorProps {
   data: ExcelRow[];
 }
 
-// Updated font options to include the actual DENSO fonts from public directory
+// Updated font options to properly reference the DENSO fonts from public directory
 const getAvailableFontOptions = () => {
   const baseFonts = [
     { value: 'helvetica', label: 'Helvetica' },
     { value: 'helvetica-bold', label: 'Helvetica Bold' },
     { value: 'times', label: 'Times Roman' },
     { value: 'courier', label: 'Courier' },
-    { value: 'denso', label: 'OCR-B (Denso)' },
-    { value: 'denso-bold', label: 'OCR-B Bold (Denso Bold)' },
   ];
 
-  // Add the actual DENSO fonts from public directory
+  // Add the actual DENSO fonts from public directory with corrected paths
   const densoFonts = [
     { value: 'denso-regular', label: 'DENSO Regular' },
     { value: 'denso-bold-real', label: 'DENSO Bold' },
@@ -40,13 +38,25 @@ const getAvailableFontOptions = () => {
     { value: 'denso-light-italic', label: 'DENSO Light Italic' },
   ];
 
-  // Check if custom font was uploaded and add it
+  // Check for uploaded custom fonts
+  try {
+    const uploadedFonts = JSON.parse(localStorage.getItem('uploaded-fonts') || '[]');
+    const customFontOptions = uploadedFonts.map((font: any) => ({
+      value: font.family,
+      label: `${font.name} (Custom)`
+    }));
+    densoFonts.push(...customFontOptions);
+  } catch (error) {
+    console.error('Error loading uploaded fonts:', error);
+  }
+
+  // Check legacy custom font
   const customFont = localStorage.getItem('denso-custom-font');
   if (customFont) {
     try {
       const fontInfo = JSON.parse(customFont);
       if (fontInfo.loaded) {
-        densoFonts.push({ value: 'denso-custom', label: `${fontInfo.originalName} (Custom)` });
+        densoFonts.push({ value: fontInfo.family || 'denso-custom', label: `${fontInfo.originalName} (Custom)` });
       }
     } catch (error) {
       console.error('Error parsing custom font info:', error);
@@ -122,12 +132,11 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   useEffect(() => {
     const loadDensoFonts = async () => {
       const fontsToLoad = [
-        { name: 'DENSO-Regular', path: '/denso fonts/DENSO-Regular.otf', cssClass: 'denso-regular' },
-        { name: 'DENSO-Bold', path: '/denso fonts/DENSO-Bold.otf', cssClass: 'denso-bold-real' },
-        { name: 'Denso Light', path: '/denso fonts/Denso Light.otf', cssClass: 'denso-light' },
-        { name: 'Denso Bold', path: '/denso fonts/Denso Bold.otf', cssClass: 'denso-bold-real' },
-        { name: 'Denso Bold Italic', path: '/denso fonts/Denso Bold Italic.otf', cssClass: 'denso-bold-italic' },
-        { name: 'Denso Light Italic', path: '/denso fonts/Denso Light Italic.otf', cssClass: 'denso-light-italic' },
+        { name: 'DENSO-Regular', path: '/Denso Fonts/DENSO-Regular.otf', cssClass: 'denso-regular' },
+        { name: 'DENSO-Bold', path: '/Denso Fonts/DENSO-Bold.otf', cssClass: 'denso-bold-real' },
+        { name: 'Denso-Light', path: '/Denso Fonts/Denso Light.otf', cssClass: 'denso-light' },
+        { name: 'Denso-Bold-Italic', path: '/Denso Fonts/Denso Bold Italic.otf', cssClass: 'denso-bold-italic' },
+        { name: 'Denso-Light-Italic', path: '/Denso Fonts/Denso Light Italic.otf', cssClass: 'denso-light-italic' },
       ];
 
       let styleContent = '';
@@ -169,9 +178,11 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     };
 
     window.addEventListener('denso-font-loaded', handleCustomFontLoad);
+    window.addEventListener('font-uploaded', handleCustomFontLoad);
     
     return () => {
       window.removeEventListener('denso-font-loaded', handleCustomFontLoad);
+      window.removeEventListener('font-uploaded', handleCustomFontLoad);
     };
   }, []);
 

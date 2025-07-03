@@ -1,3 +1,4 @@
+
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { ExcelRow } from './excelParser';
@@ -127,9 +128,50 @@ const getUploadedFonts = () => {
   }
 };
 
+// Font file mapping for public DENSO fonts
+const PUBLIC_DENSO_FONTS = {
+  'denso-regular': { file: 'DENSO-Regular.otf', name: 'DENSO-Regular' },
+  'denso-bold-real': { file: 'DENSO-Bold.otf', name: 'DENSO-Bold' },
+  'denso-light': { file: 'Denso Light.otf', name: 'Denso-Light' },
+  'denso-bold-italic': { file: 'Denso Bold Italic.otf', name: 'Denso-Bold-Italic' },
+  'denso-light-italic': { file: 'Denso Light Italic.otf', name: 'Denso-Light-Italic' },
+};
+
+// Function to load font from public directory
+const loadPublicFontForPDF = async (fontFamily: string) => {
+  const fontInfo = PUBLIC_DENSO_FONTS[fontFamily as keyof typeof PUBLIC_DENSO_FONTS];
+  if (!fontInfo) return null;
+
+  try {
+    const response = await fetch(`/Denso Fonts/${fontInfo.file}`);
+    if (!response.ok) {
+      console.warn(`Could not load font file: ${fontInfo.file}`);
+      return null;
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    
+    return {
+      name: fontInfo.name,
+      base64: base64,
+      family: fontFamily
+    };
+  } catch (error) {
+    console.error(`Error loading public font ${fontInfo.file}:`, error);
+    return null;
+  }
+};
+
 // Helper function to get font data for PDF
-const getFontDataForPDF = (fontFamily: string) => {
+const getFontDataForPDF = async (fontFamily: string) => {
   console.log('Getting font data for PDF, fontFamily:', fontFamily);
+  
+  // Check if it's a public DENSO font
+  if (PUBLIC_DENSO_FONTS[fontFamily as keyof typeof PUBLIC_DENSO_FONTS]) {
+    console.log('Loading public DENSO font:', fontFamily);
+    return await loadPublicFontForPDF(fontFamily);
+  }
   
   // Check if it's a custom uploaded font
   if (fontFamily.startsWith('custom-')) {
@@ -218,14 +260,20 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   const setupFont = async () => {
     console.log('Setting up font for PDF, fontFamily:', opts.fontFamily);
     
-    // Check if it's a custom uploaded font
-    const customFontData = getFontDataForPDF(opts.fontFamily);
+    // Try to load custom font data
+    const customFontData = await getFontDataForPDF(opts.fontFamily);
     if (customFontData) {
       try {
-        console.log('Loading custom font:', customFontData.name);
+        console.log('Loading custom font for PDF:', customFontData.name);
         const fontFileName = `${customFontData.name}.ttf`;
         pdf.addFileToVFS(fontFileName, customFontData.base64);
         pdf.addFont(fontFileName, customFontData.name, 'normal');
+        
+        // Add bold variant if it's a regular font
+        if (customFontData.name.includes('Regular') || customFontData.name.includes('Light')) {
+          pdf.addFont(fontFileName, customFontData.name, 'bold');
+        }
+        
         return customFontData.name;
       } catch (error) {
         console.error('Error loading custom font for PDF:', error);
@@ -242,8 +290,13 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
     }
   };
   
-  const fontStyle = opts.fontFamily.includes('bold') ? 'bold' : 'normal';
   const font = await setupFont();
+  let fontStyle = 'normal';
+  
+  // Determine font style based on font family
+  if (opts.fontFamily.includes('bold') || opts.fontFamily.includes('Bold')) {
+    fontStyle = 'bold';
+  }
   
   // Convert hex color to RGB array for PDF
   const hexToRGBArray = (hex: string): [number, number, number] => {
