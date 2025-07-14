@@ -7,9 +7,10 @@ import { parseExcelFile, validateExcelData, ExcelRow } from '@/utils/excelParser
 
 interface ExcelUploaderProps {
   onDataLoaded: (data: ExcelRow[]) => void;
+  validationType?: 'qr' | 'barcode';
 }
 
-const ExcelUploader: React.FC<ExcelUploaderProps> = ({ onDataLoaded }) => {
+const ExcelUploader: React.FC<ExcelUploaderProps> = ({ onDataLoaded, validationType = 'qr' }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
@@ -26,7 +27,7 @@ const ExcelUploader: React.FC<ExcelUploaderProps> = ({ onDataLoaded }) => {
     setIsLoading(true);
     try {
       const data = await parseExcelFile(file);
-      const validation = validateExcelData(data);
+      const validation = validateExcelData(data, validationType);
       
       if (!validation.valid) {
         toast({

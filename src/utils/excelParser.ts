@@ -5,6 +5,10 @@ export type ExcelRow = {
   count?: number;
   serialNumber?: string;
   qrCodeText?: string;
+  // Barcode specific fields
+  no?: number | string;
+  description?: string;
+  gtin?: string;
   [key: string]: any;
 };
 
@@ -34,17 +38,22 @@ export const parseExcelFile = (file: File): Promise<ExcelRow[]> => {
   });
 };
 
-export const validateExcelData = (data: ExcelRow[]): { valid: boolean; message: string } => {
+export const validateExcelData = (data: ExcelRow[], type: 'qr' | 'barcode' = 'qr'): { valid: boolean; message: string } => {
   if (data.length === 0) {
     return { valid: false, message: 'The Excel file is empty.' };
   }
   
-  // Check if the expected columns are present
-  const requiredColumns = ['Count', 'Unit Serial Number', 'QR Code Text'];
   const firstRow = data[0];
+  let requiredColumns: string[] = [];
+  
+  if (type === 'qr') {
+    requiredColumns = ['Count', 'Unit Serial Number', 'QR Code Text'];
+  } else if (type === 'barcode') {
+    requiredColumns = ['No.', 'Description', 'GTIN'];
+  }
   
   for (const column of requiredColumns) {
-    if (!(column in firstRow) && !(column.toLowerCase().replace(/ /g, '') in firstRow)) {
+    if (!(column in firstRow) && !(column.toLowerCase().replace(/[.\s]/g, '') in firstRow)) {
       return { 
         valid: false, 
         message: `Missing required column: ${column}. Please ensure your Excel file has the correct headers.` 
