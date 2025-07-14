@@ -5,10 +5,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ExcelRow } from '@/utils/excelParser';
 import { downloadBarcodePDF, BarcodeOptions, defaultBarcodeOptions, generateBarcodeDataURI } from '@/utils/barcodeGenerator';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Eye, Download, ChevronLeft, ChevronRight, Settings2 } from 'lucide-react';
 
 interface BarcodeGeneratorProps {
   data: ExcelRow[];
@@ -17,6 +20,7 @@ interface BarcodeGeneratorProps {
 const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({ data }) => {
   const [options, setOptions] = useState<BarcodeOptions>(defaultBarcodeOptions);
   const [showPreview, setShowPreview] = useState(false);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -26,6 +30,13 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({ data }) => {
     { value: 'A4', label: 'A4' },
     { value: 'A3', label: 'A3' },
     { value: 'Letter', label: 'Letter' }
+  ];
+
+  const fontOptions = [
+    { value: 'helvetica', label: 'Helvetica' },
+    { value: 'helvetica-bold', label: 'Helvetica Bold' },
+    { value: 'times', label: 'Times Roman' },
+    { value: 'courier', label: 'Courier' }
   ];
 
   // Calculate preview layout
@@ -42,8 +53,8 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({ data }) => {
 
     const availableWidth = pageDimensions.width - (options.margin * 2);
     const availableHeight = pageDimensions.height - (options.margin * 2);
-    const boxesPerRow = Math.floor(availableWidth / options.boxWidth);
-    const boxesPerColumn = Math.floor(availableHeight / options.boxHeight);
+    const boxesPerRow = options.boxesPerRow || Math.floor(availableWidth / (options.boxWidth + options.boxSpacing));
+    const boxesPerColumn = options.boxesPerColumn || Math.floor(availableHeight / (options.boxHeight + options.boxSpacing));
     const boxesPerPage = boxesPerRow * boxesPerColumn;
 
     return { boxesPerRow, boxesPerColumn, boxesPerPage, pageDimensions };
@@ -64,7 +75,7 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({ data }) => {
       for (const item of getCurrentPageItems()) {
         const gtin = item.gtin || item.GTIN || '';
         if (gtin) {
-          const imageUri = await generateBarcodeDataURI(gtin);
+          const imageUri = await generateBarcodeDataURI(gtin, options.transparentBackground);
           images.push(imageUri);
         } else {
           images.push('');
@@ -122,6 +133,15 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({ data }) => {
             >
               <Eye className="h-4 w-4" />
               {showPreview ? 'Hide Preview' : 'Show Preview'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+              className="flex items-center gap-2"
+            >
+              <Settings2 className="h-4 w-4" />
+              {showAdvancedOptions ? 'Hide Settings' : 'Show Settings'}
             </Button>
           </div>
         </CardTitle>
@@ -202,121 +222,234 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({ data }) => {
 
         <Separator />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="pageSize">Page Size</Label>
-            <Select
-              value={options.pageSize}
-              onValueChange={(value: 'A4' | 'A3' | 'Letter') =>
-                setOptions({ ...options, pageSize: value })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {pageSizes.map((size) => (
-                  <SelectItem key={size.value} value={size.value}>
-                    {size.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <Collapsible open={showAdvancedOptions} onOpenChange={setShowAdvancedOptions}>
+          <CollapsibleContent className="space-y-6">
+            <Tabs defaultValue="layout" className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="layout">Layout Settings</TabsTrigger>
+                <TabsTrigger value="box">Box Settings</TabsTrigger>
+                <TabsTrigger value="barcode">Barcode Settings</TabsTrigger>
+                <TabsTrigger value="content">Content Settings</TabsTrigger>
+              </TabsList>
 
-          <div className="space-y-2">
-            <Label htmlFor="orientation">Orientation</Label>
-            <Select
-              value={options.orientation}
-              onValueChange={(value: 'portrait' | 'landscape') =>
-                setOptions({ ...options, orientation: value })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="portrait">Portrait</SelectItem>
-                <SelectItem value="landscape">Landscape</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <TabsContent value="layout" className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="pageSize">Page Size</Label>
+                    <Select
+                      value={options.pageSize}
+                      onValueChange={(value: 'A4' | 'A3' | 'Letter') =>
+                        setOptions({ ...options, pageSize: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pageSizes.map((size) => (
+                          <SelectItem key={size.value} value={size.value}>
+                            {size.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="fontSize">Font Size (pt)</Label>
-            <Input
-              id="fontSize"
-              type="number"
-              step="0.1"
-              value={options.fontSize}
-              onChange={(e) =>
-                setOptions({ ...options, fontSize: parseFloat(e.target.value) || 6.667 })
-              }
-            />
-          </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="orientation">Orientation</Label>
+                    <Select
+                      value={options.orientation}
+                      onValueChange={(value: 'portrait' | 'landscape') =>
+                        setOptions({ ...options, orientation: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="portrait">Portrait</SelectItem>
+                        <SelectItem value="landscape">Landscape</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="boxWidth">Box Width (mm)</Label>
-            <Input
-              id="boxWidth"
-              type="number"
-              value={options.boxWidth}
-              onChange={(e) =>
-                setOptions({ ...options, boxWidth: parseFloat(e.target.value) || 50 })
-              }
-            />
-          </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="margin">Page Margin (mm)</Label>
+                    <Input
+                      id="margin"
+                      type="number"
+                      value={options.margin}
+                      onChange={(e) =>
+                        setOptions({ ...options, margin: parseFloat(e.target.value) || 10 })
+                      }
+                    />
+                  </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="boxHeight">Box Height (mm)</Label>
-            <Input
-              id="boxHeight"
-              type="number"
-              value={options.boxHeight}
-              onChange={(e) =>
-                setOptions({ ...options, boxHeight: parseFloat(e.target.value) || 25 })
-              }
-            />
-          </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="boxesPerRow">Boxes Per Row (Optional)</Label>
+                    <Input
+                      id="boxesPerRow"
+                      type="number"
+                      placeholder="Auto"
+                      value={options.boxesPerRow || ''}
+                      onChange={(e) =>
+                        setOptions({ ...options, boxesPerRow: e.target.value ? parseInt(e.target.value) : undefined })
+                      }
+                    />
+                  </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="barcodeWidth">Barcode Width (mm)</Label>
-            <Input
-              id="barcodeWidth"
-              type="number"
-              step="0.1"
-              value={options.barcodeWidth}
-              onChange={(e) =>
-                setOptions({ ...options, barcodeWidth: parseFloat(e.target.value) || 36.6 })
-              }
-            />
-          </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="boxesPerColumn">Boxes Per Column (Optional)</Label>
+                    <Input
+                      id="boxesPerColumn"
+                      type="number"
+                      placeholder="Auto"
+                      value={options.boxesPerColumn || ''}
+                      onChange={(e) =>
+                        setOptions({ ...options, boxesPerColumn: e.target.value ? parseInt(e.target.value) : undefined })
+                      }
+                    />
+                  </div>
+                </div>
+              </TabsContent>
 
-          <div className="space-y-2">
-            <Label htmlFor="barcodeHeight">Barcode Height (mm)</Label>
-            <Input
-              id="barcodeHeight"
-              type="number"
-              step="0.1"
-              value={options.barcodeHeight}
-              onChange={(e) =>
-                setOptions({ ...options, barcodeHeight: parseFloat(e.target.value) || 10.6 })
-              }
-            />
-          </div>
+              <TabsContent value="box" className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="boxWidth">Box Width (mm)</Label>
+                    <Input
+                      id="boxWidth"
+                      type="number"
+                      value={options.boxWidth}
+                      onChange={(e) =>
+                        setOptions({ ...options, boxWidth: parseFloat(e.target.value) || 50 })
+                      }
+                    />
+                  </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="margin">Page Margin (mm)</Label>
-            <Input
-              id="margin"
-              type="number"
-              value={options.margin}
-              onChange={(e) =>
-                setOptions({ ...options, margin: parseFloat(e.target.value) || 10 })
-              }
-            />
-          </div>
-        </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="boxHeight">Box Height (mm)</Label>
+                    <Input
+                      id="boxHeight"
+                      type="number"
+                      value={options.boxHeight}
+                      onChange={(e) =>
+                        setOptions({ ...options, boxHeight: parseFloat(e.target.value) || 25 })
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="boxSpacing">Box Spacing (mm)</Label>
+                    <Input
+                      id="boxSpacing"
+                      type="number"
+                      step="0.1"
+                      value={options.boxSpacing}
+                      onChange={(e) =>
+                        setOptions({ ...options, boxSpacing: parseFloat(e.target.value) || 2 })
+                      }
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="barcode" className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="barcodeWidth">Barcode Width (mm)</Label>
+                    <Input
+                      id="barcodeWidth"
+                      type="number"
+                      step="0.1"
+                      value={options.barcodeWidth}
+                      onChange={(e) =>
+                        setOptions({ ...options, barcodeWidth: parseFloat(e.target.value) || 36.6 })
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="barcodeHeight">Barcode Height (mm)</Label>
+                    <Input
+                      id="barcodeHeight"
+                      type="number"
+                      step="0.1"
+                      value={options.barcodeHeight}
+                      onChange={(e) =>
+                        setOptions({ ...options, barcodeHeight: parseFloat(e.target.value) || 10.6 })
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="transparentBackground"
+                        checked={options.transparentBackground}
+                        onCheckedChange={(checked) =>
+                          setOptions({ ...options, transparentBackground: checked })
+                        }
+                      />
+                      <Label htmlFor="transparentBackground">Transparent Background</Label>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="content" className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="fontSize">Font Size (pt)</Label>
+                    <Input
+                      id="fontSize"
+                      type="number"
+                      step="0.1"
+                      value={options.fontSize}
+                      onChange={(e) =>
+                        setOptions({ ...options, fontSize: parseFloat(e.target.value) || 6.667 })
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="fontFamily">Font Family</Label>
+                    <Select
+                      value={options.fontFamily}
+                      onValueChange={(value) =>
+                        setOptions({ ...options, fontFamily: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {fontOptions.map((font) => (
+                          <SelectItem key={font.value} value={font.value}>
+                            {font.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="countOutsideBox"
+                        checked={options.countOutsideBox}
+                        onCheckedChange={(checked) =>
+                          setOptions({ ...options, countOutsideBox: checked })
+                        }
+                      />
+                      <Label htmlFor="countOutsideBox">Place Count Outside Box</Label>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CollapsibleContent>
+        </Collapsible>
 
         <Separator />
 

@@ -5,23 +5,33 @@ import { ExcelRow } from './excelParser';
 export interface BarcodeOptions {
   boxWidth: number; // in mm
   boxHeight: number; // in mm
+  boxSpacing: number; // in mm
   barcodeWidth: number; // in mm
   barcodeHeight: number; // in mm
   fontSize: number; // in pt
   pageSize: 'A4' | 'A3' | 'Letter';
   orientation: 'portrait' | 'landscape';
   margin: number; // in mm
+  boxesPerRow?: number;
+  boxesPerColumn?: number;
+  countOutsideBox: boolean;
+  transparentBackground: boolean;
+  fontFamily: string;
 }
 
 export const defaultBarcodeOptions: BarcodeOptions = {
   boxWidth: 50,
   boxHeight: 25,
+  boxSpacing: 2,
   barcodeWidth: 36.6,
   barcodeHeight: 10.6,
   fontSize: 6.667,
   pageSize: 'A4',
   orientation: 'portrait',
-  margin: 10
+  margin: 10,
+  countOutsideBox: true,
+  transparentBackground: true,
+  fontFamily: 'helvetica'
 };
 
 const getPageDimensions = (pageSize: string, orientation: 'portrait' | 'landscape') => {
@@ -37,17 +47,17 @@ const getPageDimensions = (pageSize: string, orientation: 'portrait' | 'landscap
     : size;
 };
 
-export const generateBarcodeDataURI = (gtin: string): Promise<string> => {
+export const generateBarcodeDataURI = (gtin: string, transparent: boolean = true): Promise<string> => {
   return new Promise((resolve, reject) => {
     try {
       const canvas = document.createElement('canvas');
       JsBarcode(canvas, gtin, {
-        format: 'EAN13',
+        format: 'CODE128',
         width: 2,
         height: 60,
         displayValue: false,
         margin: 0,
-        background: '#ffffff',
+        background: transparent ? 'transparent' : '#ffffff',
         lineColor: '#000000'
       });
       
@@ -72,8 +82,8 @@ export const generateBarcodePDF = async (data: ExcelRow[], options: Partial<Barc
   // Calculate how many boxes fit per page
   const availableWidth = pageDimensions.width - (opts.margin * 2);
   const availableHeight = pageDimensions.height - (opts.margin * 2);
-  const boxesPerRow = Math.floor(availableWidth / opts.boxWidth);
-  const boxesPerColumn = Math.floor(availableHeight / opts.boxHeight);
+  const boxesPerRow = opts.boxesPerRow || Math.floor(availableWidth / (opts.boxWidth + opts.boxSpacing));
+  const boxesPerColumn = opts.boxesPerColumn || Math.floor(availableHeight / (opts.boxHeight + opts.boxSpacing));
   const boxesPerPage = boxesPerRow * boxesPerColumn;
 
   let currentPage = 0;
@@ -93,11 +103,13 @@ export const generateBarcodePDF = async (data: ExcelRow[], options: Partial<Barc
     const col = positionInPage % boxesPerRow;
     
     // Calculate position (centered within available space)
-    const startX = opts.margin + (availableWidth - (boxesPerRow * opts.boxWidth)) / 2;
-    const startY = opts.margin + (availableHeight - (boxesPerColumn * opts.boxHeight)) / 2;
+    const totalWidth = boxesPerRow * opts.boxWidth + (boxesPerRow - 1) * opts.boxSpacing;
+    const totalHeight = boxesPerColumn * opts.boxHeight + (boxesPerColumn - 1) * opts.boxSpacing;
+    const startX = opts.margin + (availableWidth - totalWidth) / 2;
+    const startY = opts.margin + (availableHeight - totalHeight) / 2;
     
-    const x = startX + (col * opts.boxWidth);
-    const y = startY + (row * opts.boxHeight);
+    const x = startX + col * (opts.boxWidth + opts.boxSpacing);
+    const y = startY + row * (opts.boxHeight + opts.boxSpacing);
     
     // Draw box border (optional, for debugging)
     // pdf.rect(x, y, opts.boxWidth, opts.boxHeight);
@@ -106,7 +118,7 @@ export const generateBarcodePDF = async (data: ExcelRow[], options: Partial<Barc
       // Generate barcode
       const gtin = item.gtin || item.GTIN || '';
       if (gtin) {
-        const barcodeDataURI = await generateBarcodeDataURI(gtin);
+        const barcodeDataURI = await generateBarcodeDataURI(gtin, opts.transparentBackground);
         
         // Calculate centered positions within the box
         const barcodeX = x + (opts.boxWidth - opts.barcodeWidth) / 2;
@@ -117,13 +129,18 @@ export const generateBarcodePDF = async (data: ExcelRow[], options: Partial<Barc
         
         // Add text below barcode
         pdf.setFontSize(opts.fontSize);
-        pdf.setFont('helvetica', 'normal');
+        pdf.setFont(opts.fontFamily === 'helvetica' ? 'helvetica' : 'helvetica', 'normal');
         
         // No. and Description above barcode
         const no = item.no || item['No.'] || '';
         const description = item.description || item.Description || '';
         
-        if (no) {
+        if (opts.countOutsideBox && no) {
+          // Place count outside box (top-left corner)
+          const countX = x - 5;
+          const countY = y - 2;
+          pdf.text(String(no), countX, countY, { align: 'left' });
+        } else if (no) {
           const noY = barcodeY - 2;
           pdf.text(String(no), x + opts.boxWidth / 2, noY, { align: 'center' });
         }
