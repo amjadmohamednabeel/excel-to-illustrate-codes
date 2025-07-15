@@ -32,12 +32,87 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({ data }) => {
     { value: 'Letter', label: 'Letter' }
   ];
 
-  const fontOptions = [
-    { value: 'helvetica', label: 'Helvetica' },
-    { value: 'helvetica-bold', label: 'Helvetica Bold' },
-    { value: 'times', label: 'Times Roman' },
-    { value: 'courier', label: 'Courier' }
-  ];
+  // Font options including DENSO fonts and uploaded custom fonts
+  const getAvailableFontOptions = () => {
+    const baseFonts = [
+      { value: 'helvetica', label: 'Helvetica' },
+      { value: 'helvetica-bold', label: 'Helvetica Bold' },
+      { value: 'times', label: 'Times Roman' },
+      { value: 'courier', label: 'Courier' }
+    ];
+
+    // Add the actual DENSO fonts from public directory
+    const densoFonts = [
+      { value: 'denso-regular', label: 'DENSO Regular' },
+      { value: 'denso-bold-real', label: 'DENSO Bold' },
+      { value: 'denso-light', label: 'DENSO Light' },
+      { value: 'denso-bold-italic', label: 'DENSO Bold Italic' },
+      { value: 'denso-light-italic', label: 'DENSO Light Italic' }
+    ];
+
+    // Check for uploaded custom fonts
+    try {
+      const uploadedFonts = JSON.parse(localStorage.getItem('uploaded-fonts') || '[]');
+      const customFontOptions = uploadedFonts.map((font: any) => ({
+        value: font.family,
+        label: `${font.name} (Custom)`
+      }));
+      densoFonts.push(...customFontOptions);
+    } catch (error) {
+      console.error('Error loading uploaded fonts:', error);
+    }
+
+    return [...baseFonts, ...densoFonts];
+  };
+
+  const [fontOptions, setFontOptions] = useState(getAvailableFontOptions());
+
+  // Listen for font uploads
+  useEffect(() => {
+    const handleFontUpload = () => {
+      setFontOptions(getAvailableFontOptions());
+    };
+
+    window.addEventListener('font-uploaded', handleFontUpload);
+    return () => window.removeEventListener('font-uploaded', handleFontUpload);
+  }, []);
+
+  // Load DENSO fonts
+  useEffect(() => {
+    const loadDensoFonts = async () => {
+      const densoFonts = [
+        { name: 'DENSO-Regular', path: '/Denso Fonts/DENSO-Regular.otf', cssClass: 'denso-regular' },
+        { name: 'DENSO-Bold', path: '/Denso Fonts/DENSO-Bold.otf', cssClass: 'denso-bold-real' },
+        { name: 'Denso-Light', path: '/Denso Fonts/Denso Light.otf', cssClass: 'denso-light' },
+        { name: 'Denso-Bold-Italic', path: '/Denso Fonts/Denso Bold Italic.otf', cssClass: 'denso-bold-italic' },
+        { name: 'Denso-Light-Italic', path: '/Denso Fonts/Denso Light Italic.otf', cssClass: 'denso-light-italic' },
+      ];
+
+      const styleElement = document.createElement('style');
+      styleElement.textContent = densoFonts.map(font => `
+        @font-face {
+          font-family: '${font.name}';
+          src: url('${font.path}') format('opentype');
+          font-weight: normal;
+          font-style: normal;
+          font-display: swap;
+        }
+        .${font.cssClass} {
+          font-family: '${font.name}', monospace !important;
+        }
+      `).join('\n');
+      
+      styleElement.id = 'denso-public-fonts-barcode';
+      
+      const existingStyle = document.getElementById('denso-public-fonts-barcode');
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+      document.head.appendChild(styleElement);
+    };
+
+    loadDensoFonts();
+  }, []);
 
   // Calculate preview layout
   const getPreviewLayout = () => {

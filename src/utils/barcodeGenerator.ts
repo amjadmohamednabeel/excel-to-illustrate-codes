@@ -31,7 +31,7 @@ export const defaultBarcodeOptions: BarcodeOptions = {
   margin: 10,
   countOutsideBox: true,
   transparentBackground: true,
-  fontFamily: 'helvetica'
+  fontFamily: 'denso-regular'
 };
 
 const getPageDimensions = (pageSize: string, orientation: 'portrait' | 'landscape') => {
@@ -129,7 +129,44 @@ export const generateBarcodePDF = async (data: ExcelRow[], options: Partial<Barc
         
         // Add text below barcode
         pdf.setFontSize(opts.fontSize);
-        pdf.setFont(opts.fontFamily === 'helvetica' ? 'helvetica' : 'helvetica', 'normal');
+        
+        // Handle font selection
+        let fontFamily = 'helvetica';
+        let fontStyle = 'normal';
+        
+        switch (opts.fontFamily) {
+          case 'helvetica':
+            fontFamily = 'helvetica';
+            fontStyle = 'normal';
+            break;
+          case 'helvetica-bold':
+            fontFamily = 'helvetica';
+            fontStyle = 'bold';
+            break;
+          case 'times':
+            fontFamily = 'times';
+            fontStyle = 'normal';
+            break;
+          case 'courier':
+            fontFamily = 'courier';
+            fontStyle = 'normal';
+            break;
+          case 'denso-regular':
+          case 'denso-bold-real':
+          case 'denso-light':
+          case 'denso-bold-italic':
+          case 'denso-light-italic':
+            // For DENSO fonts, use Helvetica as fallback since jsPDF doesn't support custom fonts directly
+            fontFamily = 'helvetica';
+            fontStyle = opts.fontFamily.includes('bold') ? 'bold' : 'normal';
+            break;
+          default:
+            // For custom fonts, use Helvetica as fallback
+            fontFamily = 'helvetica';
+            fontStyle = 'normal';
+        }
+        
+        pdf.setFont(fontFamily, fontStyle);
         
         // No. and Description above barcode
         const no = item.no || item['No.'] || '';
