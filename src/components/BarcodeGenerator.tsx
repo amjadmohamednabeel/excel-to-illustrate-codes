@@ -19,6 +19,7 @@ interface BarcodeGeneratorProps {
 
 const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({ data }) => {
   const [options, setOptions] = useState<BarcodeOptions>(defaultBarcodeOptions);
+  const [isBold, setIsBold] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
@@ -484,22 +485,39 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({ data }) => {
                   <div className="space-y-2">
                     <Label htmlFor="fontFamily">Font Family</Label>
                     <Select
-                      value={options.fontFamily}
-                      onValueChange={(value) =>
-                        setOptions({ ...options, fontFamily: value })
-                      }
+                      value={options.fontFamily.replace('-bold-real', '-regular')}
+                      onValueChange={(value) => {
+                        const finalFont = isBold && value === 'denso-regular' ? 'denso-bold-real' : value;
+                        setOptions({ ...options, fontFamily: finalFont });
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {fontOptions.map((font) => (
+                        {fontOptions.filter(font => !font.value.includes('bold')).map((font) => (
                           <SelectItem key={font.value} value={font.value}>
                             {font.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="font-bold"
+                        checked={isBold}
+                        onCheckedChange={(checked) => {
+                          setIsBold(checked);
+                          if (options.fontFamily === 'denso-regular') {
+                            setOptions({ ...options, fontFamily: checked ? 'denso-bold-real' : 'denso-regular' });
+                          }
+                        }}
+                      />
+                      <Label htmlFor="font-bold">Bold</Label>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
