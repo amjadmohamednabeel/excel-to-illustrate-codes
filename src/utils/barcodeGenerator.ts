@@ -153,9 +153,6 @@ export const generateBarcodePDF = async (data: ExcelRow[], options: Partial<Barc
             break;
           case 'denso-regular':
           case 'denso-bold-real':
-          case 'denso-light':
-          case 'denso-bold-italic':
-          case 'denso-light-italic':
             // For DENSO fonts, use Helvetica as fallback since jsPDF doesn't support custom fonts directly
             fontFamily = 'helvetica';
             fontStyle = opts.fontFamily.includes('bold') ? 'bold' : 'normal';

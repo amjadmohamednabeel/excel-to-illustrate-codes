@@ -33,9 +33,6 @@ const getAvailableFontOptions = () => {
   const densoFonts = [
     { value: 'denso-regular', label: 'DENSO Regular' },
     { value: 'denso-bold-real', label: 'DENSO Bold' },
-    { value: 'denso-light', label: 'DENSO Light' },
-    { value: 'denso-bold-italic', label: 'DENSO Bold Italic' },
-    { value: 'denso-light-italic', label: 'DENSO Light Italic' },
   ];
 
   // Check for uploaded custom fonts
@@ -132,11 +129,8 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   useEffect(() => {
     const loadDensoFonts = async () => {
       const fontsToLoad = [
-        { name: 'DENSO-Regular', path: '/Denso Fonts/DENSO-Regular.otf', cssClass: 'denso-regular' },
-        { name: 'DENSO-Bold', path: '/Denso Fonts/DENSO-Bold.otf', cssClass: 'denso-bold-real' },
-        { name: 'Denso-Light', path: '/Denso Fonts/Denso Light.otf', cssClass: 'denso-light' },
-        { name: 'Denso-Bold-Italic', path: '/Denso Fonts/Denso Bold Italic.otf', cssClass: 'denso-bold-italic' },
-        { name: 'Denso-Light-Italic', path: '/Denso Fonts/Denso Light Italic.otf', cssClass: 'denso-light-italic' },
+        { name: 'DENSO-Regular', path: '/Denso Fonts/DENSORegular.woff2.ttf', cssClass: 'denso-regular' },
+        { name: 'DENSO-Bold', path: '/Denso Fonts/DENSOBold.woff2.ttf', cssClass: 'denso-bold-real' },
       ];
 
       let styleContent = '';
@@ -146,7 +140,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
           styleContent += `
             @font-face {
               font-family: '${font.name}';
-              src: url('${font.path}') format('opentype');
+              src: url('${font.path}') format('truetype');
               font-weight: normal;
               font-style: normal;
             }

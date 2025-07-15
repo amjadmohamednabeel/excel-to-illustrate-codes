@@ -130,11 +130,8 @@ const getUploadedFonts = () => {
 
 // Font file mapping for public DENSO fonts
 const PUBLIC_DENSO_FONTS = {
-  'denso-regular': { file: 'DENSO-Regular.otf', name: 'DENSO-Regular' },
-  'denso-bold-real': { file: 'DENSO-Bold.otf', name: 'DENSO-Bold' },
-  'denso-light': { file: 'Denso Light.otf', name: 'Denso-Light' },
-  'denso-bold-italic': { file: 'Denso Bold Italic.otf', name: 'Denso-Bold-Italic' },
-  'denso-light-italic': { file: 'Denso Light Italic.otf', name: 'Denso-Light-Italic' },
+  'denso-regular': { file: 'DENSORegular.woff2.ttf', name: 'DENSO-Regular' },
+  'denso-bold-real': { file: 'DENSOBold.woff2.ttf', name: 'DENSO-Bold' },
 };
 
 // Function to load font from public directory
