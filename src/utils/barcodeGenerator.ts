@@ -111,8 +111,8 @@ export const generateBarcodePDF = async (data: ExcelRow[], options: Partial<Barc
     const x = startX + col * (opts.boxWidth + opts.boxSpacing);
     const y = startY + row * (opts.boxHeight + opts.boxSpacing);
     
-    // Draw box border (optional, for debugging)
-    // pdf.rect(x, y, opts.boxWidth, opts.boxHeight);
+    // Draw box border
+    pdf.rect(x, y, opts.boxWidth, opts.boxHeight);
     
     try {
       // Generate barcode
