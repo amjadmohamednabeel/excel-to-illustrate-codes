@@ -174,7 +174,7 @@ const Index = () => {
                     Get started by uploading your Excel file with QR code data
                   </p>
                   <div className="text-sm text-gray-500 space-y-1">
-                    <p>• Supports SVG, EPS, and PDF formats</p>
+                    <p>• Supports PDF formats</p>
                     <p>• Custom fonts and layouts</p>
                     <p>• Adobe Illustrator compatible</p>
                   </div>
@@ -226,7 +226,7 @@ const Index = () => {
                     Get started by uploading your Excel file with barcode data
                   </p>
                   <div className="text-sm text-gray-500 space-y-1">
-                    <p>• EAN13 barcode format</p>
+                    <p>• Code 128 barcode format</p>
                     <p>• Professional layout with centered content</p>
                     <p>• PDF output for printing</p>
                   </div>
@@ -247,14 +247,14 @@ const Index = () => {
                   <li>Upload Excel with Count, Unit Serial Number, QR Code Text columns</li>
                   <li>Upload custom fonts via File menu (optional)</li>
                   <li>Customize layout, size, colors, and appearance</li>
-                  <li>Generate SVG, EPS, or PDF files for Adobe Illustrator</li>
+                  <li>Generate PDF files for Adobe Illustrator</li>
                 </ul>
               </div>
               <div>
                 <h3 className="font-medium text-green-700 mb-2">Barcode Generator</h3>
                 <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
                   <li>Upload Excel with No., Description, GTIN columns</li>
-                  <li>Automatic EAN13 barcode generation</li>
+                  <li>Automatic Code 128 barcode generation</li>
                   <li>Professional layout with 50×25mm boxes</li>
                   <li>PDF output optimized for printing</li>
                 </ul>
