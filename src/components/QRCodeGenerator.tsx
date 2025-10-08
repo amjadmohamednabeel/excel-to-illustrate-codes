@@ -127,6 +127,9 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [qrCodeWidth, setQrCodeWidth] = useState(18);
   const [qrCodeHeight, setQrCodeHeight] = useState(18);
 
+  const [useQuantityRepeat, setUseQuantityRepeat] = useState(false);
+  const [quantityRepeat, setQuantityRepeat] = useState(5);
+
   useEffect(() => {
     const loadDensoFonts = async () => {
       const fontsToLoad = [
@@ -268,6 +271,9 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
         serialToBoxGap,
         serialToQrGap,
         qrToBoxGap,
+        // Quantity repeat options
+        useQuantityRepeat,
+        quantityRepeat,
       };
       
       await downloadIllustratorFiles(data, fileFormat, options);
@@ -851,6 +857,43 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                         <div>• QR ends at: {(positions.qrX + (useCustomQRDimensions ? qrCodeWidth : boxHeight * (qrCodeSize / 100))).toFixed(2)}mm</div>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="space-y-3 border-t pt-3">
+                    <h3 className="text-sm font-medium">Quantity Repeat</h3>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="quantity-repeat" className="font-medium">
+                          Enable Quantity Repeat
+                        </Label>
+                        <Switch
+                          id="quantity-repeat"
+                          checked={useQuantityRepeat}
+                          onCheckedChange={setUseQuantityRepeat}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Repeat each QR code across columns based on quantity (e.g., qty 5: 1,1,1,1,1 | 2,2,2,2,2)
+                      </p>
+                    </div>
+
+                    {useQuantityRepeat && (
+                      <div className="space-y-1 mt-2">
+                        <Label htmlFor="qty-value" className="text-xs">Quantity per Row</Label>
+                        <Input
+                          id="qty-value"
+                          type="number"
+                          min="1"
+                          max="20"
+                          value={quantityRepeat}
+                          onChange={(e) => setQuantityRepeat(parseInt(e.target.value) || 1)}
+                        />
+                        <p className="text-xs text-gray-500">
+                          Each serial number will be repeated {quantityRepeat} times across the row
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-3 border-t pt-3">

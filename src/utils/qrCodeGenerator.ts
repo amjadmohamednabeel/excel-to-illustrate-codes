@@ -34,6 +34,8 @@ export interface GenerationOptions {
   serialToBoxGap?: number;
   serialToQrGap?: number;
   qrToBoxGap?: number;
+  useQuantityRepeat?: boolean;
+  quantityRepeat?: number;
 }
 
 const defaultOptions: GenerationOptions = {
@@ -280,8 +282,20 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
     format: typeof opts.pageSize === 'object' && 'width' in opts.pageSize ? [opts.pageSize.width, opts.pageSize.height] : opts.pageSize
   });
   
+  // Process data based on quantity repeat setting
+  let processedData = data;
+  if (opts.useQuantityRepeat && opts.quantityRepeat && opts.quantityRepeat > 1) {
+    processedData = [];
+    for (const row of data) {
+      // Repeat each row based on quantityRepeat value
+      for (let i = 0; i < opts.quantityRepeat; i++) {
+        processedData.push(row);
+      }
+    }
+  }
+  
   // Detect sets in the data
-  const sets = detectSets(data);
+  const sets = detectSets(processedData);
   console.log(`Detected ${sets.length} sets in data`);
   
   const layout = calculateLayout(opts);
