@@ -287,7 +287,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   if (opts.useQuantityRepeat && opts.quantityRepeat && opts.quantityRepeat > 1) {
     processedData = [];
     for (const row of data) {
-      // Repeat each row based on quantityRepeat value
+      // Repeat each row based on quantityRepeat value to fill entire row
       for (let i = 0; i < opts.quantityRepeat; i++) {
         processedData.push(row);
       }
@@ -298,7 +298,17 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   const sets = detectSets(processedData);
   console.log(`Detected ${sets.length} sets in data`);
   
-  const layout = calculateLayout(opts);
+  // Override layout if quantity repeat is enabled
+  const layoutOptions = { ...opts };
+  if (opts.useQuantityRepeat && opts.quantityRepeat) {
+    layoutOptions.boxesPerRow = opts.quantityRepeat;
+    // Calculate how many rows fit on a page
+    const pageDims = getPageDimensions(opts.pageSize, opts.orientation);
+    const boxSpacing = opts.boxSpacing || 10;
+    layoutOptions.boxesPerColumn = Math.floor((pageDims.height - boxSpacing) / (opts.boxHeight + boxSpacing));
+  }
+  
+  const layout = calculateLayout(layoutOptions);
   const boxSpacing = opts.boxSpacing || 10;
   
   // Function to determine and load the font
