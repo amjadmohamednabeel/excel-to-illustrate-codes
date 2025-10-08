@@ -235,6 +235,37 @@ export const generateEPSLayout = (data: ExcelRow[], options: Partial<GenerationO
   return "EPS generation placeholder";
 };
 
+// Helper function to detect sets in data
+const detectSets = (data: ExcelRow[]): ExcelRow[][] => {
+  const sets: ExcelRow[][] = [];
+  let currentSet: ExcelRow[] = [];
+  let previousCount: number | null = null;
+  
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    const count = Number(row['Count'] || row.count || 0);
+    
+    // Detect when a new set starts (count resets to 1 or becomes smaller than previous)
+    if (previousCount !== null && (count === 1 || count < previousCount)) {
+      // Push current set and start a new one
+      if (currentSet.length > 0) {
+        sets.push(currentSet);
+        currentSet = [];
+      }
+    }
+    
+    currentSet.push(row);
+    previousCount = count;
+  }
+  
+  // Push the last set
+  if (currentSet.length > 0) {
+    sets.push(currentSet);
+  }
+  
+  return sets.length > 0 ? sets : [data]; // Return original data as single set if no sets detected
+};
+
 export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationOptions> = {}) => {
   const { jsPDF } = await import('jspdf');
   
@@ -249,9 +280,12 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
     format: typeof opts.pageSize === 'object' && 'width' in opts.pageSize ? [opts.pageSize.width, opts.pageSize.height] : opts.pageSize
   });
   
+  // Detect sets in the data
+  const sets = detectSets(data);
+  console.log(`Detected ${sets.length} sets in data`);
+  
   const layout = calculateLayout(opts);
   const boxSpacing = opts.boxSpacing || 10;
-  const numPages = Math.ceil(data.length / layout.boxesPerPage);
   
   // Function to determine and load the font
   const setupFont = async () => {
@@ -322,82 +356,93 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
     pdf.setFont('helvetica', fontStyle);
   }
   
-  // Generate QR codes and add to PDF page by page
-  for (let pageNum = 0; pageNum < numPages; pageNum++) {
-    if (pageNum > 0) {
-      pdf.addPage();
-    }
+  let isFirstPage = true;
+  let totalPagesCreated = 0;
+  
+  // Generate QR codes for each set, with each set starting on a new page
+  for (let setIndex = 0; setIndex < sets.length; setIndex++) {
+    const setData = sets[setIndex];
+    const numPagesForSet = Math.ceil(setData.length / layout.boxesPerPage);
+    console.log(`Set ${setIndex + 1}: ${setData.length} items, ${numPagesForSet} pages`);
     
-    const startIndex = pageNum * layout.boxesPerPage;
-    const endIndex = Math.min(startIndex + layout.boxesPerPage, data.length);
-    
-    const promises = [];
-    
-    for (let i = startIndex; i < endIndex; i++) {
-      const row = data[i];
-      const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${i}`;
-      const qrText = row['QR Code Text'] || row.qrCodeText || serial;
-      const count = row['Count'] || row.count || (i + 1).toString();
+    for (let pageNum = 0; pageNum < numPagesForSet; pageNum++) {
+      if (!isFirstPage) {
+        pdf.addPage();
+      }
+      isFirstPage = false;
+      totalPagesCreated++;
       
-      const qrOptions = {
-        errorCorrectionLevel: 'M' as QRCode.QRCodeErrorCorrectionLevel,
-        margin: 1,
-        width: 200,
-        color: {
-          dark: opts.qrCodeColor || defaultOptions.qrCodeColor!,
-          light: opts.qrCodeTransparentBg ? '#0000' : (opts.qrCodeBgColor || defaultOptions.qrCodeBgColor!)
-        }
-      };
+      const startIndex = pageNum * layout.boxesPerPage;
+      const endIndex = Math.min(startIndex + layout.boxesPerPage, setData.length);
       
-      const promise = QRCode.toDataURL(qrText, qrOptions).then(dataUrl => {
-        const localIndex = i - startIndex;
-        const col = localIndex % layout.boxesPerRow;
-        const rowNum = Math.floor(localIndex / layout.boxesPerRow);
+      const promises = [];
+      
+      for (let i = startIndex; i < endIndex; i++) {
+        const row = setData[i];
+        const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${i}`;
+        const qrText = row['QR Code Text'] || row.qrCodeText || serial;
+        const count = row['Count'] || row.count || (i + 1).toString();
         
-        const x = layout.horizontalMargin + (col * (opts.boxWidth + boxSpacing));
-        const y = layout.verticalMargin + (rowNum * (opts.boxHeight + boxSpacing));
-        
-        // Draw box border
-        pdf.setDrawColor(...boxBorderColorRGB);
-        pdf.setLineWidth(0.2);
-        pdf.rect(x, y, opts.boxWidth, opts.boxHeight);
-        
-        // Add count number outside the box
-        if (opts.countOutsideBox) {
-          pdf.setTextColor(...countColorRGB);
-          pdf.setFontSize(10);
-          try {
-            pdf.setFont(font, 'bold');
-          } catch {
-            pdf.setFont('helvetica', 'bold');
+        const qrOptions = {
+          errorCorrectionLevel: 'M' as QRCode.QRCodeErrorCorrectionLevel,
+          margin: 1,
+          width: 200,
+          color: {
+            dark: opts.qrCodeColor || defaultOptions.qrCodeColor!,
+            light: opts.qrCodeTransparentBg ? '#0000' : (opts.qrCodeBgColor || defaultOptions.qrCodeBgColor!)
           }
-          pdf.text(`${count}.`, x - 5, y + opts.boxHeight / 2, { align: 'right', baseline: 'middle' });
-        }
+        };
         
-        // Add serial number
-        pdf.setTextColor(...serialColorRGB);
-        pdf.setFontSize(opts.fontSize);
-        try {
-          pdf.setFont(font, fontStyle);
-        } catch {
-          pdf.setFont('helvetica', fontStyle);
-        }
+        const promise = QRCode.toDataURL(qrText, qrOptions).then(dataUrl => {
+          const localIndex = i - startIndex;
+          const col = localIndex % layout.boxesPerRow;
+          const rowNum = Math.floor(localIndex / layout.boxesPerRow);
+          
+          const x = layout.horizontalMargin + (col * (opts.boxWidth + boxSpacing));
+          const y = layout.verticalMargin + (rowNum * (opts.boxHeight + boxSpacing));
+          
+          // Draw box border
+          pdf.setDrawColor(...boxBorderColorRGB);
+          pdf.setLineWidth(0.2);
+          pdf.rect(x, y, opts.boxWidth, opts.boxHeight);
+          
+          // Add count number outside the box
+          if (opts.countOutsideBox) {
+            pdf.setTextColor(...countColorRGB);
+            pdf.setFontSize(10);
+            try {
+              pdf.setFont(font, 'bold');
+            } catch {
+              pdf.setFont('helvetica', 'bold');
+            }
+            pdf.text(`${count}.`, x - 5, y + opts.boxHeight / 2, { align: 'right', baseline: 'middle' });
+          }
+          
+          // Add serial number
+          pdf.setTextColor(...serialColorRGB);
+          pdf.setFontSize(opts.fontSize);
+          try {
+            pdf.setFont(font, fontStyle);
+          } catch {
+            pdf.setFont('helvetica', fontStyle);
+          }
+          
+          const textY = y + (opts.boxHeight / 2);
+          pdf.text(serial, x + positions.serialX, textY, { baseline: 'middle' });
+          
+          // Add QR code
+          const qrY = y + (opts.boxHeight - positions.qrHeight) / 2;
+          
+          if (dataUrl) {
+            pdf.addImage(dataUrl, 'PNG', x + positions.qrX, qrY, positions.qrWidth, positions.qrHeight);
+          }
+        });
         
-        const textY = y + (opts.boxHeight / 2);
-        pdf.text(serial, x + positions.serialX, textY, { baseline: 'middle' });
-        
-        // Add QR code
-        const qrY = y + (opts.boxHeight - positions.qrHeight) / 2;
-        
-        if (dataUrl) {
-          pdf.addImage(dataUrl, 'PNG', x + positions.qrX, qrY, positions.qrWidth, positions.qrHeight);
-        }
-      });
+        promises.push(promise);
+      }
       
-      promises.push(promise);
+      await Promise.all(promises);
     }
-    
-    await Promise.all(promises);
   }
   
   // Add footer if enabled
@@ -405,7 +450,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
     const footerSize = opts.footerFontSize || defaultOptions.footerFontSize;
     const qtyText = opts.customQty || `${data.length}`;
     
-    for (let i = 0; i < numPages; i++) {
+    for (let i = 0; i < totalPagesCreated; i++) {
       pdf.setPage(i + 1);
       
       pdf.setFontSize(footerSize);
