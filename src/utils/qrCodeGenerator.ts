@@ -282,33 +282,11 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
     format: typeof opts.pageSize === 'object' && 'width' in opts.pageSize ? [opts.pageSize.width, opts.pageSize.height] : opts.pageSize
   });
   
-  // Process data based on quantity repeat setting
-  let processedData = data;
-  if (opts.useQuantityRepeat && opts.quantityRepeat && opts.quantityRepeat > 1) {
-    processedData = [];
-    for (const row of data) {
-      // Repeat each row based on quantityRepeat value to fill entire row
-      for (let i = 0; i < opts.quantityRepeat; i++) {
-        processedData.push(row);
-      }
-    }
-  }
-  
-  // Detect sets in the data
-  const sets = detectSets(processedData);
+  // Detect sets in the original data (don't repeat rows in data array)
+  const sets = detectSets(data);
   console.log(`Detected ${sets.length} sets in data`);
   
-  // Override layout if quantity repeat is enabled
-  const layoutOptions = { ...opts };
-  if (opts.useQuantityRepeat && opts.quantityRepeat) {
-    layoutOptions.boxesPerRow = opts.quantityRepeat;
-    // Calculate how many rows fit on a page
-    const pageDims = getPageDimensions(opts.pageSize, opts.orientation);
-    const boxSpacing = opts.boxSpacing || 10;
-    layoutOptions.boxesPerColumn = Math.floor((pageDims.height - boxSpacing) / (opts.boxHeight + boxSpacing));
-  }
-  
-  const layout = calculateLayout(layoutOptions);
+  const layout = calculateLayout(opts);
   const boxSpacing = opts.boxSpacing || 10;
   
   // Function to determine and load the font
@@ -386,8 +364,12 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   // Generate QR codes for each set, with each set starting on a new page
   for (let setIndex = 0; setIndex < sets.length; setIndex++) {
     const setData = sets[setIndex];
-    const numPagesForSet = Math.ceil(setData.length / layout.boxesPerPage);
-    console.log(`Set ${setIndex + 1}: ${setData.length} items, ${numPagesForSet} pages`);
+    
+    // Calculate total boxes needed considering quantity repeat
+    const repeatCount = opts.useQuantityRepeat && opts.quantityRepeat ? opts.quantityRepeat : 1;
+    const totalBoxes = setData.length * repeatCount;
+    const numPagesForSet = Math.ceil(totalBoxes / layout.boxesPerPage);
+    console.log(`Set ${setIndex + 1}: ${setData.length} items x ${repeatCount} = ${totalBoxes} boxes, ${numPagesForSet} pages`);
     
     for (let pageNum = 0; pageNum < numPagesForSet; pageNum++) {
       if (!isFirstPage) {
@@ -396,16 +378,19 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
       isFirstPage = false;
       totalPagesCreated++;
       
-      const startIndex = pageNum * layout.boxesPerPage;
-      const endIndex = Math.min(startIndex + layout.boxesPerPage, setData.length);
+      const startBoxIndex = pageNum * layout.boxesPerPage;
+      const endBoxIndex = Math.min(startBoxIndex + layout.boxesPerPage, totalBoxes);
       
       const promises = [];
       
-      for (let i = startIndex; i < endIndex; i++) {
-        const row = setData[i];
-        const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${i}`;
+      for (let boxIndex = startBoxIndex; boxIndex < endBoxIndex; boxIndex++) {
+        // Calculate which data row and which repeat this box represents
+        const dataIndex = Math.floor(boxIndex / repeatCount);
+        const row = setData[dataIndex];
+        
+        const serial = row['Unit Serial Number'] || row.serialNumber || `unknown-${dataIndex}`;
         const qrText = row['QR Code Text'] || row.qrCodeText || serial;
-        const count = row['Count'] || row.count || (i + 1).toString();
+        const count = row['Count'] || row.count || (dataIndex + 1).toString();
         
         const qrOptions = {
           errorCorrectionLevel: 'M' as QRCode.QRCodeErrorCorrectionLevel,
@@ -418,9 +403,9 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
         };
         
         const promise = QRCode.toDataURL(qrText, qrOptions).then(dataUrl => {
-          const localIndex = i - startIndex;
-          const col = localIndex % layout.boxesPerRow;
-          const rowNum = Math.floor(localIndex / layout.boxesPerRow);
+          const localBoxIndex = boxIndex - startBoxIndex;
+          const col = localBoxIndex % layout.boxesPerRow;
+          const rowNum = Math.floor(localBoxIndex / layout.boxesPerRow);
           
           const x = layout.horizontalMargin + (col * (opts.boxWidth + boxSpacing));
           const y = layout.verticalMargin + (rowNum * (opts.boxHeight + boxSpacing));
