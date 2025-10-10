@@ -31,8 +31,8 @@ const getAvailableFontOptions = () => {
 
   // Add the actual DENSO fonts from public directory with corrected paths
   const densoFonts = [
-    { value: 'denso-regular', label: 'DENSO Regular' },
-    { value: 'denso-bold-real', label: 'DENSO Bold' },
+    { value: 'DENSO-Regular', label: 'DENSO Regular' },
+    { value: 'DENSO-Bold', label: 'DENSO Bold' },
   ];
 
   // Check for uploaded custom fonts
