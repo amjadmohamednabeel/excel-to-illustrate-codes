@@ -18,6 +18,7 @@ export interface GenerationOptions {
   boxesPerColumn?: number;
   countOutsideBox?: boolean;
   boxSpacing?: number;
+  rowSpacing?: number;
   showFooter?: boolean;
   customQty?: string;
   footerFontSize?: number;
@@ -48,6 +49,7 @@ const defaultOptions: GenerationOptions = {
   fontFamily: 'helvetica-bold',
   countOutsideBox: true,
   boxSpacing: 10,
+  rowSpacing: 10,
   showFooter: true,
   footerFontSize: 12,
   boxBorderColor: '#FF0000',
@@ -288,6 +290,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
   
   const layout = calculateLayout(opts);
   const boxSpacing = opts.boxSpacing || 10;
+  const rowSpacing = opts.rowSpacing || opts.boxSpacing || 10;
   
   // Function to determine and load the font
   const setupFont = async () => {
@@ -408,7 +411,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
           const rowNum = Math.floor(localBoxIndex / layout.boxesPerRow);
           
           const x = layout.horizontalMargin + (col * (opts.boxWidth + boxSpacing));
-          const y = layout.verticalMargin + (rowNum * (opts.boxHeight + boxSpacing));
+          const y = layout.verticalMargin + (rowNum * (opts.boxHeight + rowSpacing));
           
           // Draw box border
           pdf.setDrawColor(...boxBorderColorRGB);

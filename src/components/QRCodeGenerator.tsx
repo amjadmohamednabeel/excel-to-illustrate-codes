@@ -92,6 +92,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [boxWidth, setBoxWidth] = useState(50);
   const [boxHeight, setBoxHeight] = useState(30);
   const [boxSpacing, setBoxSpacing] = useState(10);
+  const [rowSpacing, setRowSpacing] = useState(10);
   const [qrCodeSize, setQrCodeSize] = useState(60);
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [fontSize, setFontSize] = useState(9);
@@ -246,7 +247,8 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
         boxWidth,
         boxHeight,
         boxSpacing, 
-        qrCodeSize: qrCodeSize / 100, 
+        rowSpacing,
+        qrCodeSize: qrCodeSize / 100,
         orientation,
         fontSize,
         pageSize: pageSize === 'custom' ? { width: customWidth, height: customHeight } : pageSize as any,
@@ -341,6 +343,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
     setBoxWidth(50);
     setBoxHeight(30);
     setBoxSpacing(10);
+    setRowSpacing(10);
     setQrCodeSize(60);
     setOrientation('portrait');
     setFontSize(9);
@@ -728,7 +731,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
 
                     <div className="space-y-2">
                       <div className="flex justify-between">
-                        <Label>Box Spacing: {boxSpacing} mm</Label>
+                        <Label>Box Spacing (Horizontal): {boxSpacing} mm</Label>
                       </div>
                       <Slider
                         value={[boxSpacing]}
@@ -738,7 +741,23 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                         onValueChange={(value) => setBoxSpacing(value[0])}
                       />
                       <p className="text-xs text-gray-500">
-                        Space between boxes in layout
+                        Horizontal space between boxes
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <Label>Row Spacing (Vertical): {rowSpacing} mm</Label>
+                      </div>
+                      <Slider
+                        value={[rowSpacing]}
+                        min={5}
+                        max={30}
+                        step={1}
+                        onValueChange={(value) => setRowSpacing(value[0])}
+                      />
+                      <p className="text-xs text-gray-500">
+                        Vertical space between rows
                       </p>
                     </div>
 
