@@ -100,6 +100,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [customWidth, setCustomWidth] = useState(210);
   const [customHeight, setCustomHeight] = useState(297);
   const [fontFamily, setFontFamily] = useState('denso-regular');
+  const [fontFamily, setFontFamily] = useState('denso-bold-real');
   const [isBold, setIsBold] = useState(false);
   const [boxesPerRow, setBoxesPerRow] = useState<number | null>(null);
   const [boxesPerColumn, setBoxesPerColumn] = useState<number | null>(null);
