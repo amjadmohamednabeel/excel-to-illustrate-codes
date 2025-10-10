@@ -486,26 +486,37 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
 const calculateLayout = (options: GenerationOptions) => {
   const pageDims = getPageDimensions(options.pageSize, options.orientation);
   const boxSpacing = options.boxSpacing || 10;
+  const rowSpacing = options.rowSpacing || options.boxSpacing || 10;
+  
+  // Reserve space for footer if enabled
+  const footerHeight = options.showFooter !== false ? 30 : 0;
+  const availableHeight = pageDims.height - footerHeight;
   
   if (options.boxesPerRow && options.boxesPerColumn) {
+    const totalContentHeight = (options.boxesPerColumn * options.boxHeight) + ((options.boxesPerColumn - 1) * rowSpacing);
+    const verticalMargin = Math.max(5, (availableHeight - totalContentHeight) / 2);
+    
     return {
       boxesPerRow: options.boxesPerRow,
       boxesPerColumn: options.boxesPerColumn,
       boxesPerPage: options.boxesPerRow * options.boxesPerColumn,
       horizontalMargin: (pageDims.width - ((options.boxesPerRow * options.boxWidth) + ((options.boxesPerRow - 1) * boxSpacing))) / 2,
-      verticalMargin: (pageDims.height - ((options.boxesPerColumn * options.boxHeight) + ((options.boxesPerColumn - 1) * boxSpacing))) / 2
+      verticalMargin: verticalMargin
     };
   }
   
   const boxesPerRow = Math.floor((pageDims.width - boxSpacing) / (options.boxWidth + boxSpacing));
-  const boxesPerColumn = Math.floor((pageDims.height - boxSpacing) / (options.boxHeight + boxSpacing));
+  const boxesPerColumn = Math.floor((availableHeight - 10) / (options.boxHeight + rowSpacing));
+  
+  const totalContentHeight = (boxesPerColumn * options.boxHeight) + ((boxesPerColumn - 1) * rowSpacing);
+  const verticalMargin = Math.max(5, (availableHeight - totalContentHeight) / 2);
   
   return {
     boxesPerRow,
     boxesPerColumn,
     boxesPerPage: boxesPerRow * boxesPerColumn,
     horizontalMargin: (pageDims.width - ((boxesPerRow * options.boxWidth) + ((boxesPerRow - 1) * boxSpacing))) / 2,
-    verticalMargin: (pageDims.height - ((boxesPerColumn * options.boxHeight) + ((boxesPerColumn - 1) * boxSpacing))) / 2
+    verticalMargin: verticalMargin
   };
 };
 
