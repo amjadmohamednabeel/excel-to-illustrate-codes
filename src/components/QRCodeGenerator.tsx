@@ -100,7 +100,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
   const [customWidth, setCustomWidth] = useState(210);
   const [customHeight, setCustomHeight] = useState(297);
   const [fontFamily, setFontFamily] = useState('denso-regular');
-  const [isBold, setIsBold] = useState(false);
   const [boxesPerRow, setBoxesPerRow] = useState<number | null>(null);
   const [boxesPerColumn, setBoxesPerColumn] = useState<number | null>(null);
   const [boxesPerPage, setBoxesPerPage] = useState<number>(25);
@@ -545,8 +544,8 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                                 transform: 'translateY(-50%)',
                                 color: serialColor,
                                 fontSize: `${fontSize * layout.scaleFactor}px`,
-                                fontFamily: fontFamily.includes('denso') ? (isBold ? 'DENSO-Bold, monospace' : 'DENSO-Regular, monospace') : 'inherit',
-                                fontWeight: isBold ? 'bold' : 'normal'
+                                fontFamily: fontFamily.includes('denso') ? (fontFamily === 'denso-bold-real' ? 'DENSO-Bold, monospace' : 'DENSO-Regular, monospace') : 'inherit',
+                                fontWeight: fontFamily.includes('bold') ? 'bold' : 'normal'
                               }}
                             >
                               {serial}
@@ -1057,39 +1056,20 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ data }) => {
                       <div className="space-y-2">
                         <Label>Font</Label>
                         <Select 
-                          value={fontFamily.replace('-bold-real', '-regular')} 
-                          onValueChange={(value) => {
-                            const finalFont = isBold && value === 'denso-regular' ? 'denso-bold-real' : value;
-                            setFontFamily(finalFont);
-                          }}
+                          value={fontFamily} 
+                          onValueChange={setFontFamily}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select font" />
                           </SelectTrigger>
                           <SelectContent>
-                            {fontOptions.filter(font => !font.value.includes('bold')).map((font) => (
+                            {fontOptions.map((font) => (
                               <SelectItem key={font.value} value={font.value}>
                                 {font.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            id="font-bold"
-                            checked={isBold}
-                            onCheckedChange={(checked) => {
-                              setIsBold(checked);
-                              if (fontFamily === 'denso-regular') {
-                                setFontFamily(checked ? 'denso-bold-real' : 'denso-regular');
-                              }
-                            }}
-                          />
-                          <Label htmlFor="font-bold">Bold</Label>
-                        </div>
                       </div>
                     </div>
                   </div>
