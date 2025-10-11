@@ -305,12 +305,7 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
         pdf.addFileToVFS(fontFileName, customFontData.base64);
         pdf.addFont(fontFileName, customFontData.name, 'normal');
         
-        // Add bold variant if it's a regular font
-        if (customFontData.name.includes('Regular') || customFontData.name.includes('Light')) {
-          pdf.addFont(fontFileName, customFontData.name, 'bold');
-        }
-        
-        return customFontData.name;
+        return { fontName: customFontData.name, fontStyle: 'normal' };
       } catch (error) {
         console.error('Error loading custom font for PDF:', error);
       }
@@ -318,21 +313,19 @@ export const generatePDF = async (data: ExcelRow[], options: Partial<GenerationO
     
     // Handle system fonts
     if (opts.fontFamily.includes('times')) {
-      return 'times';
+      return { fontName: 'times', fontStyle: 'normal' };
     } else if (opts.fontFamily.includes('courier')) {
-      return 'courier';
+      return { fontName: 'courier', fontStyle: 'normal' };
+    } else if (opts.fontFamily.includes('helvetica-bold')) {
+      return { fontName: 'helvetica', fontStyle: 'bold' };
     } else {
-      return 'helvetica';
+      return { fontName: 'helvetica', fontStyle: 'normal' };
     }
   };
   
-  const font = await setupFont();
-  let fontStyle = 'normal';
-  
-  // Determine font style based on font family
-  if (opts.fontFamily.includes('bold') || opts.fontFamily.includes('Bold')) {
-    fontStyle = 'bold';
-  }
+  const fontInfo = await setupFont();
+  const font = fontInfo.fontName;
+  const fontStyle = fontInfo.fontStyle;
   
   // Convert hex color to RGB array for PDF
   const hexToRGBArray = (hex: string): [number, number, number] => {
